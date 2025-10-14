@@ -2,7 +2,7 @@
 # ---
 name: CoderAgent
 class_name: CoderAgent
-model: gpt-5
+model: gpt-4o
 system_prompt: >
   You are an expert-level software development AI agent.
   Your sole purpose is to help the user with their coding projects.
@@ -14,7 +14,7 @@ system_prompt: >
   5. Debug and fix your own code until all tests pass.
   6. Once tests pass, use the 'git_commit' tool with a clear, conventional commit message.
   You must be methodical, precise, and secure.
-vector_store_id: "vs_..." # Your Vector Store ID
+vector_store_id: "vs_68edffae626481919dd5804af5c27b4e" # Your Vector Store ID
 tools:
   - read_file
   - write_file
