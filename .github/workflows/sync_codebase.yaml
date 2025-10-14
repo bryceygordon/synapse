@@ -40,24 +40,30 @@ jobs:
               print('❌ VECTOR_STORE_ID secret not found. Aborting.')
               exit(1)
 
+          # --- THE CRITICAL FIX IS HERE ---
+          # Define a set of allowed extensions for code and documentation.
+          ALLOWED_EXTENSIONS = {'.py', '.md', '.toml', '.txt'}
+
           repo_path = Path('.')
           files_to_upload = [
               p for p in repo_path.rglob('*')
-              # --- THE CRITICAL FIX IS HERE ---
-              # Add a check to ensure the file size is greater than zero.
-              if p.is_file() and p.stat().st_size > 0 and
-              '.git' not in p.parts and
-              '.github' not in p.parts and
-              '.venv' not in p.parts and
-              '__pycache__' not in p.parts
+              if p.is_file() and
+                 p.stat().st_size > 0 and
+                 p.suffix in ALLOWED_EXTENSIONS and # Check against the allowlist
+                 '.git' not in p.parts and
+                 '.github' not in p.parts and
+                 '.venv' not in p.parts and
+                 '__pycache__' not in p.parts
           ]
           # --- End of critical fix section ---
 
           if not files_to_upload:
-              print('No non-empty files found to upload. Exiting.')
+              print('No allowed, non-empty files found to upload. Exiting.')
               exit(0)
               
-          print(f'Found {len(files_to_upload)} non-empty files to upload.')
+          print(f'Found {len(files_to_upload)} allowed, non-empty files to upload:')
+          for f in files_to_upload:
+              print(f'  - {f}')
           
           file_streams = [open(path, 'rb') for path in files_to_upload]
           try:
