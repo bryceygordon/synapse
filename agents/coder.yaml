@@ -1,15 +1,15 @@
 # Configuration for the Master Coder Agent
 # ---
 
+name: CoderAgent
+
 # The Python class that will be instantiated for this agent.
 class_name: CoderAgent
 
 # The OpenAI model this agent will use for its reasoning.
-# We are using a placeholder for the latest model as of our development time.
 model: gpt-5
 
 # The core instruction set that defines the agent's persona and primary directive.
-# This is a critical prompt engineering step.
 system_prompt: >
   You are an expert-level software development AI agent.
   Your sole purpose is to help the user with their coding projects.
@@ -23,12 +23,10 @@ system_prompt: >
   7. Always ask for confirmation before force-pushing or making destructive changes.
   You must be methodical, precise, and secure.
 
-# The unique ID of the OpenAI Vector Store containing this project's codebase.
-# Leave this empty for now; we will populate it in a later phase.
+# The unique ID of the OpenAI Vector Store.
 vector_store_id: ""
 
 # A list of methods on the CoderAgent class that this agent is permitted to call.
-# We will implement these methods in Phase 2.
 tools:
   - read_file
   - write_file

@@ -10,6 +10,7 @@ class BaseAgent:
         Args:
             config: A dictionary loaded from the agent's YAML configuration file.
         """
+        self.name: str = config.get("name", "Unnamed Agent")
         self.class_name: str = config.get("class_name", "BaseAgent")
         self.model: str = config.get("model", "gpt-4o") # A sensible default
         self.system_prompt: str = config.get("system_prompt", "You are a helpful assistant.")

@@ -1,0 +1,13 @@
+README.md
+pyproject.toml
+core/agents/__init__.py
+core/agents/base.py
+core/agents/coder.py
+synapse.egg-info/PKG-INFO
+synapse.egg-info/SOURCES.txt
+synapse.egg-info/dependency_links.txt
+synapse.egg-info/requires.txt
+synapse.egg-info/top_level.txt
+tests/test_agent_classes.py
+tests/test_config.py
+tools/__init__.py
