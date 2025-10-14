@@ -1,0 +1,996 @@
+--- FILE: pyproject.toml ---
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "synapse"
+version = "0.1.0"
+description = "A modular, command-line-first AI orchestration engine."
+authors = [
+  { name="Your Name", email="you@example.com" },
+]
+requires-python = ">=3.11"
+dependencies = [
+    "openai>=1.35.3",
+    "typer[all]>=0.12.3",
+    "pyyaml>=6.0.1",
+    "python-dotenv>=1.0.1",
+    "tenacity>=8.4.1",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.2.2",
+]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["core*", "tools*"]
+exclude = ["tests*"]
+
+
+--- FILE: config.yaml ---
+# Global application settings for Synapse
+# ---
+
+# Path to the directory where agent configurations are stored.
+agent_config_path: "agents/"
+
+
+--- FILE: agents/coder.yaml ---
+# Configuration for the Master Coder Agent
+# ---
+name: CoderAgent
+class_name: CoderAgent
+model: gpt-4o
+system_prompt: >
+  You are an expert-level software development AI agent.
+  Your sole purpose is to help the user with their coding projects.
+  You must operate in a loop:
+  1. Understand the user's high-level goal.
+  2. Use your available tools to inspect the codebase, read files, and understand the current state.
+  3. Write or modify code to achieve the goal, adhering to best practices.
+  4. Use the 'run_tests' tool to verify your changes.
+  5. Debug and fix your own code until all tests pass.
+  6. Once tests pass, use the 'git_commit' tool with a clear, conventional commit message.
+  You must be methodical, precise, and secure.
+vector_store_id: "vs_68edffae626481919dd5804af5c27b4e" # Your Vector Store ID
+tools:
+  - read_file
+  - write_file
+  - list_files
+  - run_tests
+  - git_commit
+
+
+--- FILE: PROJECT_VISION.md ---
+# Project Vision Statement: Synapse
+
+## Vision
+To create a modular, command-line-first AI orchestration engine built on an object-oriented foundation. Each agent in the Synapse ecosystem is a distinct Python **class instance**, whose attributes are loaded from a configuration file and whose **methods are its tools**. The initial version of Synapse will instantiate a **Master Coder Agent**, a powerful and reliable partner capable of autonomously handling the complete test-develop-commit-push lifecycle by invoking its own methods based on AI-driven decisions.
+
+## Core Principles
+1.  **Agents as Objects**: The core abstraction is the Agent class. The engine's primary role is to instantiate and orchestrate these agent objects, providing strong encapsulation of logic and state.
+2.  **Configuration as Initialization**: A YAML file is not just a collection of settings; it is the blueprint for an agent's `__init__` method. It defines the initial state and attributes of an agent object.
+3.  **Methods as Tools**: An agent's capabilities are not external, loosely-coupled functions. They are methods implemented directly on the agent's class. A tool call from the AI becomes a direct method invocation on the agent instance (e.g., `coder_agent.run_tests()`).
+4.  **Developer-Centricity**: The first and only goal of this iteration is to perfect the `CoderAgent` class and its methods, making it a world-class assistant for software development.
+5.  **Reliability and Transparency**: The engine will be built with robust error handling, clear logging, and transparent CLI feedback. The user will always know which agent object is active and which method is being invoked.
+
+
+--- FILE: ARCHITECTURAL_BLUEPRINT.md ---
+cat <<EOF > ARCHITECTURAL_BLUEPRINT.md
+# Architectural Blueprint
+
+This blueprint outlines the structure of the Synapse engine, based on an object-oriented, configuration-driven pattern for the OpenAI Responses API.
+
+## 1. The Core Engine (CLI Application)
+* **Technology**: Python, using the `Typer` library.
+* **Function**: Manages the main application loop. Its central responsibility is to use the `AgentLoader` to create an active `agent` instance and then mediate the conversation, invoking methods on that instance as requested by the AI.
+
+## 2. Agent Class Hierarchy (`core/agents/`)
+* **`base.py`**: Defines an abstract `BaseAgent` class. This class handles common logic like storing attributes from the config (`system_prompt`, `model`, etc.).
+* **`coder.py`**: Defines the `CoderAgent(BaseAgent)` class. Its methods are the tools available to the agent: `read_file`, `write_file`, `run_shell_command`, etc.
+
+## 3. Configuration (`agents/coder.yaml`)
+* The blueprint for instantiating an agent object. It includes a `class_name` key to tell the loader which Python class to use.
+
+## 4. Agent Loader & Introspector
+* A sophisticated module that:
+    1.  Reads an agent's `.yaml` configuration.
+    2.  Dynamically imports the class specified by `class_name`.
+    3.  Instantiates the class, passing the YAML attributes to its constructor.
+    4.  Introspects the newly created agent object's methods (as defined in the YAML's `tools` list) and generates the required JSON Schemas for the OpenAI API directly from the methods' docstrings and type hints.
+
+## 5. Method Invoker
+* When the core loop receives a `tool_call` from the API, it uses Python's `getattr()` function to dynamically get the method from the active `agent` instance (e.g., `method = getattr(coder_agent, "run_shell_command")`).
+* It then securely calls this method with the arguments provided by the AI.
+
+## 6. Knowledge Stores (Vector Stores)
+* Managed as standalone entities via the OpenAI API.
+* A dedicated GitHub Actions workflow monitors the target project repository. On `git push`, the action automatically syncs the codebase to the agent's designated Vector Store.
+EOF
+
+
+--- FILE: ROADMAP.md ---
+# Development Roadmap
+
+This is a phased, actionable plan. Each step includes an implementation goal, a testing requirement, and a documentation task.
+
+---
+
+## Phase 0: Foundation & Setup
+*Goal: Create a clean, organized, and ready-to-develop project structure.*
+
+- [x] **Step 0.0: Project Initialization & Version Control**
+- [x] **Step 0.1: Initialize Project Structure**
+- [x] **Step 0.2: Environment & Dependencies**
+- [x] **Step 0.3: Initial Configuration**
+
+---
+
+## Phase 1: The Object-Oriented Core Loop
+*Goal: Instantiate a `CoderAgent` object from its YAML file and establish a basic conversation.*
+
+- [x] **Step 1.1: Implement the Agent Class Hierarchy**
+- [x] **Step 1.2: Build the Object-Instantiating Agent Loader**
+- [x] **Step 1.3: Build the Main Loop & State Management**
+
+---
+
+## Phase 2: Methods as Tools
+*Goal: Enable the AI to invoke methods directly on the `CoderAgent` instance.*
+
+- [x] **Step 2.1: Implement Tool Methods on `CoderAgent`**
+- [x] **Step 2.2: Build the Introspection-Based Schema Generator**
+- [x] **Step 2.3: Integrate Schema Generation and Build the Method Invoker**
+
+---
+
+## Phase 3: Integrating Knowledge (The "Brain")
+*Goal: Connect the agent to a persistent knowledge base synced via Git.*
+
+- [x] **Step 3.1: Vector Store Management Script**
+- [x] **Step 3.2: Implement the GitHub Action for Code Sync**
+- [x] **Step 3.3: Integrate Knowledge into the API Call**
+
+---
+
+## Phase 4: Hardening & Polish
+*Goal: Transform the functional prototype into a reliable and pleasant-to-use personal tool.*
+
+- [ ] **Step 4.1: Implement Error Handling & Retries**
+- [ ] **Step 4.2: Implement Logging**
+- [ ] **Step 4.3: CLI Polish and Output Formatting**
+- [ ] **Step 4.4: Future Considerations (Tickler List)**
+
+
+--- FILE: core/main.py ---
+import os
+import json
+import typer
+import openai # Import the base library to catch its specific errors
+from openai import OpenAI
+from dotenv import load_dotenv
+from tenacity import retry, wait_exponential, stop_after_attempt, retry_if_exception_type
+
+from core.agent_loader import load_agent
+from core.schema_generator import generate_tool_schemas
+
+app = typer.Typer()
+
+# --- NEW: Retry Logic Definition ---
+def before_sleep_log(retry_state):
+    """Log before sleeping on a retry."""
+    print(f"Retrying API call... (Attempt {retry_state.attempt_number})")
+
+@retry(
+    wait=wait_exponential(multiplier=1, min=2, max=60), # Exponential backoff: 2s, 4s, 8s...
+    stop=stop_after_attempt(3), # Stop after 3 attempts
+    retry=retry_if_exception_type(openai.APIStatusError), # Only retry on server-side errors (5xx)
+    before_sleep=before_sleep_log,
+)
+def make_api_call(client: OpenAI, payload: dict):
+    """
+    A hardened wrapper for the client.responses.create call that includes retry logic.
+    """
+    return client.responses.create(**payload)
+# --- End of New Logic ---
+
+
+@app.command()
+def chat():
+    """
+    Starts an interactive chat session with the configured Synapse agent.
+    """
+    print("--- Synapse AI Chat---")
+
+    load_dotenv()
+    client = OpenAI()
+
+    try:
+        agent = load_agent(agent_name="coder")
+        tools_for_api = []
+        if agent.vector_store_id:
+            tools_for_api.append({"type": "file_search", "vector_store_ids": [agent.vector_store_id]})
+            print(f"🧠 Knowledge enabled with Vector Store: {agent.vector_store_id}")
+        function_tool_schemas = generate_tool_schemas(agent)
+        tools_for_api.extend(function_tool_schemas)
+        tool_names = [t.get("name") for t in function_tool_schemas]
+        print(f"✅ Agent '{agent.name}' loaded successfully. Model: {agent.model}. Tools: {tool_names}")
+    except Exception as e:
+        print(f"❌ Error loading agent: {e}")
+        raise typer.Exit()
+
+    print("Type your message below. Press Ctrl+C to exit.")
+
+    last_response_id = None
+    next_input = None
+
+    while True:
+        try:
+            if next_input:
+                current_input = next_input
+                next_input = None
+            else:
+                user_text = input("\n> ")
+                current_input = [{"type": "message", "role": "user", "content": user_text}]
+
+            print(f"\nSending request to {agent.name}...", flush=True)
+
+            request_payload = {
+                "model": agent.model,
+                "input": current_input,
+                "instructions": agent.system_prompt,
+                "tools": tools_for_api,
+            }
+
+            if last_response_id:
+                request_payload["previous_response_id"] = last_response_id
+
+            # --- MODIFIED: Use the hardened API call wrapper ---
+            response = make_api_call(client=client, payload=request_payload)
+            last_response_id = response.id
+
+            tool_call = next((item for item in response.output if item.type == "function_call"), None)
+
+            if tool_call:
+                function_name = tool_call.name
+                arguments = json.loads(tool_call.arguments)
+
+                print(f"🛠️  Invoking tool: {function_name}(**{arguments})")
+
+                method_to_call = getattr(agent, function_name)
+                tool_output = method_to_call(**arguments)
+
+                next_input = [
+                    tool_call.model_dump(),
+                    {"type": "function_call_output", "call_id": tool_call.id, "output": tool_output}
+                ]
+                continue
+
+            if response.output_text:
+                print(f"\nAssistant: {response.output_text}")
+
+        except KeyboardInterrupt:
+            print("\nExiting chat. Goodbye!")
+            break
+        except Exception as e:
+            print(f"\nAn error occurred: {e}")
+            last_response_id = None
+            next_input = None
+
+if __name__ == "__main__":
+    app()
+
+
+--- FILE: core/agent_loader.py ---
+import yaml
+import importlib
+from pathlib import Path
+from core.agents.base import BaseAgent
+
+def load_agent(agent_name: str, config_path: str = "agents") -> BaseAgent:
+    """
+    Loads an agent's configuration, dynamically imports its class,
+    and returns an initialized agent instance.
+
+    Args:
+        agent_name: The name of the agent to load (e.g., "coder").
+        config_path: The directory containing agent YAML files.
+
+    Returns:
+        An initialized instance of the specified agent class (e.g., CoderAgent).
+
+    Raises:
+        FileNotFoundError: If the agent's YAML file does not exist.
+        AttributeError: If the class specified in the YAML does not exist.
+        KeyError: If essential keys are missing from the YAML file.
+    """
+    # 1. Construct the file path and check for existence.
+    file_path = Path(config_path) / f"{agent_name}.yaml"
+    if not file_path.exists():
+        raise FileNotFoundError(f"Agent configuration file not found at: {file_path}")
+
+    # 2. Load the YAML configuration.
+    with open(file_path, "r") as f:
+        config_data = yaml.safe_load(f)
+
+    if not config_data:
+        raise ValueError(f"Configuration file is empty or invalid: {file_path}")
+
+    # 3. Get the required class name from the config.
+    class_name = config_data.get("class_name")
+    if not class_name:
+        raise KeyError(f"'class_name' not specified in {file_path}")
+
+    # 4. Dynamically import the agent's module and get the class.
+    # This is the clever part: it turns a string into a real Python class.
+    try:
+        agent_module = importlib.import_module(f"core.agents.{agent_name}")
+        AgentClass = getattr(agent_module, class_name)
+    except (ImportError, AttributeError) as e:
+        raise AttributeError(f"Could not find class '{class_name}' in module 'core.agents.{agent_name}'. Please check your configuration. Original error: {e}")
+
+    # 5. Instantiate the class with its configuration and return it.
+    return AgentClass(config=config_data)
+
+
+
+--- FILE: core/schema_generator.py ---
+import inspect
+import re
+from typing import get_type_hints
+
+TYPE_MAPPING = {
+    str: "string",
+    int: "integer",
+    float: "number",
+    bool: "boolean",
+    list: "array",
+    dict: "object",
+}
+
+def parse_docstring_args(docstring: str) -> dict[str, str]:
+    """Parses the 'Args:' section of a docstring."""
+    args_section = re.search(r'Args:(.*)', docstring, re.S)
+    if not args_section:
+        return {}
+    
+    args_str = args_section.group(1)
+    arg_lines = [line.strip() for line in args_str.strip().split('\n')]
+    
+    descriptions = {}
+    for line in arg_lines:
+        match = re.match(r'(\w+):\s*(.*)', line)
+        if match:
+            param_name, description = match.groups()
+            descriptions[param_name] = description
+            
+    return descriptions
+
+def generate_tool_schemas(agent_instance: object) -> list[dict]:
+    """
+    Generates OpenAI-compatible tool schemas by introspecting an agent's methods.
+    This version creates the correct flat structure for function tools.
+    """
+    schemas = []
+    tool_names = getattr(agent_instance, 'tools', [])
+
+    for tool_name in tool_names:
+        method = getattr(agent_instance, tool_name, None)
+        if not method or not callable(method):
+            continue
+
+        docstring = inspect.getdoc(method)
+        if not docstring:
+            continue
+
+        lines = docstring.strip().split('\n')
+        description = lines[0]
+        
+        param_descriptions = parse_docstring_args(docstring)
+        
+        signature = inspect.signature(method)
+        type_hints = get_type_hints(method)
+        
+        properties = {}
+        required = []
+
+        for param in signature.parameters.values():
+            if param.name == 'self':
+                continue
+            
+            param_type = type_hints.get(param.name)
+            if not param_type:
+                continue
+                
+            properties[param.name] = {
+                "type": TYPE_MAPPING.get(param_type, "string"),
+                "description": param_descriptions.get(param.name, "No description available.")
+            }
+            
+            if param.default is inspect.Parameter.empty:
+                required.append(param.name)
+
+        # --- THE CRITICAL FIX IS HERE ---
+        # The schema is a single, flat dictionary.
+        schema = {
+            "type": "function",
+            "name": tool_name,
+            "description": description,
+            "parameters": {
+                "type": "object",
+                "properties": properties,
+                "required": required,
+            },
+        }
+        schemas.append(schema)
+
+    return schemas
+
+
+--- FILE: core/logger.py ---
+import logging
+from logging.handlers import RotatingFileHandler
+
+def setup_logging():
+    """
+    Configures a rotating file logger for the application.
+    """
+    # Get the root logger
+    logger = logging.getLogger()
+    logger.setLevel(logging.INFO) # Set the minimum level of messages to log
+
+    # Prevent the logger from propagating messages to the parent (e.g., console)
+    logger.propagate = False
+
+    # Create a rotating file handler
+    # This will create up to 5 log files, each 1MB in size.
+    handler = RotatingFileHandler(
+        "synapse.log", maxBytes=1_000_000, backupCount=5
+    )
+    
+    # Create a formatter to define the log message structure
+    formatter = logging.Formatter(
+        '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    )
+    handler.setFormatter(formatter)
+
+    # Add the handler to the logger, but only if it doesn't have handlers already
+    if not logger.handlers:
+        logger.addHandler(handler)
+
+
+
+--- FILE: core/secure_executor.py ---
+import docker
+import os
+
+def execute_sandboxed_command(command: list[str]) -> str:
+    """
+    Executes a command inside a new, ephemeral, and hardened Docker container.
+
+    Args:
+        command: A list of strings representing the command and its arguments.
+
+    Returns:
+        The combined stdout and stderr from the container.
+    """
+    try:
+        client = docker.from_env()
+        workspace_path = os.getcwd()
+
+        container = client.containers.run(
+            image="debian:bookworm-slim",  # A minimal, trusted base image
+            command=command,
+            working_dir="/workspace",
+            volumes={workspace_path: {"bind": "/workspace", "mode": "rw"}},
+            remove=True,  # Ephemeral: container is deleted after execution
+            detach=False, # Run in the foreground and wait for completion
+            security_opt=["no-new-privileges"], # Prevent privilege escalation
+            user=f"{os.getuid()}:{os.getgid()}", # Run as the current host user
+        )
+
+        # The result is returned as bytes, so we decode it.
+        output = container.decode('utf-8')
+        return f"Command executed successfully:\n{output}"
+
+    except docker.errors.ContainerError as e:
+        # This error is raised for non-zero exit codes.
+        return f"Command failed with exit code {e.exit_status}:\n{e.stderr.decode('utf-8')}"
+    except docker.errors.ImageNotFound:
+        return "Error: The 'debian:bookworm-slim' Docker image was not found. Please run 'docker pull debian:bookworm-slim'."
+    except Exception as e:
+        return f"An unexpected error occurred with Docker: {e}"
+
+
+
+--- FILE: core/agents/base.py ---
+class BaseAgent:
+    """
+    A base class for all agents, handling the initialization of common attributes
+    from a configuration dictionary.
+    """
+    def __init__(self, config: dict):
+        """
+        Initializes the agent with attributes from the provided config.
+
+        Args:
+            config: A dictionary loaded from the agent's YAML configuration file.
+        """
+        self.name: str = config.get("name", "Unnamed Agent")
+        self.class_name: str = config.get("class_name", "BaseAgent")
+        self.model: str = config.get("model", "gpt-4o") # A sensible default
+        self.system_prompt: str = config.get("system_prompt", "You are a helpful assistant.")
+        self.vector_store_id: str | None = config.get("vector_store_id")
+        self.tools: list[str] = config.get("tools", [])
+
+
+
+--- FILE: core/agents/coder.py ---
+from core.agents.base import BaseAgent
+from core.secure_executor import execute_sandboxed_command # We will create this next
+
+class CoderAgent(BaseAgent):
+    """
+    A specialized agent for software development tasks.
+    Its methods are specific, secure tools that delegate execution to a sandboxed environment.
+    """
+
+    def read_file(self, file_path: str) -> str:
+        """
+        Reads the content of a file at the specified path.
+
+        Args:
+            file_path: The relative or absolute path to the file.
+        """
+        # This is a safe operation, but for consistency, we could also sandbox it.
+        # For now, we keep it as a direct read for simplicity.
+        from pathlib import Path
+        try:
+            path = Path(file_path)
+            if not path.exists():
+                return f"Error: File not found at {file_path}"
+            with open(path, "r") as f:
+                return f.read()
+        except Exception as e:
+            return f"Error reading file: {e}"
+
+    def write_file(self, file_path: str, content: str) -> str:
+        """
+        Writes or overwrites content to a file at the specified path.
+
+        Args:
+            file_path: The path where the file will be written.
+            content: The string content to write to the file.
+        """
+        from pathlib import Path
+        try:
+            path = Path(file_path)
+            path.parent.mkdir(parents=True, exist_ok=True)
+            with open(path, "w") as f:
+                f.write(content)
+            return f"Successfully wrote to {file_path}"
+        except Exception as e:
+            return f"Error writing file: {e}"
+
+    def list_files(self, directory_path: str = ".") -> str:
+        """
+        Lists all files and directories in a specified directory.
+
+        Args:
+            directory_path: The path to the directory to list. Defaults to the current directory.
+        """
+        # This is a safe command, so we can use the sandboxed executor.
+        command = ["ls", "-la", directory_path]
+        return execute_sandboxed_command(command)
+
+    def run_tests(self, path: str = ".") -> str:
+        """
+        Runs the pytest test suite on a given path.
+
+        Args:
+            path: The specific file or directory to run tests on. Defaults to the whole project.
+        """
+        # The command is fixed. Only the path argument is user-controllable.
+        command = ["python", "-m", "pytest", path]
+        return execute_sandboxed_command(command)
+
+    def git_commit(self, message: str) -> str:
+        """
+        Stages all changes and creates a git commit with the provided message.
+
+        Args:
+            message: The commit message.
+        """
+        # We construct the command in two parts to ensure safety.
+        # No shell interpretation is ever used.
+        add_command = ["git", "add", "."]
+        execute_sandboxed_command(add_command) # Run the 'add' first
+
+        commit_command = ["git", "commit", "-m", message]
+        return execute_sandboxed_command(commit_command)
+
+
+
+--- FILE: scripts/manage_vector_stores.py ---
+import typer
+from openai import OpenAI
+from dotenv import load_dotenv
+
+# Initialize Typer app and load environment variables
+app = typer.Typer()
+load_dotenv()
+client = OpenAI()
+
+@app.command()
+def create(name: str):
+    """
+    Creates a new, empty vector store with the given name.
+    """
+    print(f"Creating vector store named '{name}'...")
+    try:
+        vector_store = client.vector_stores.create(name=name)
+        print(f"✅ Success! Vector Store '{name}' created.")
+        print(f"   ID: {vector_store.id}")
+    except Exception as e:
+        print(f"❌ Error creating vector store: {e}")
+
+@app.command()
+def list():
+    """
+    Lists all available vector stores in your OpenAI organization.
+    """
+    print("Fetching vector stores...")
+    try:
+        vector_stores = client.vector_stores.list()
+        if not vector_stores.data:
+            print("No vector stores found.")
+            return
+
+        print("--- Available Vector Stores ---")
+        for store in vector_stores.data:
+            print(f"- Name: {store.name}, ID: {store.id}")
+        print("-----------------------------")
+    except Exception as e:
+        print(f"❌ Error listing vector stores: {e}")
+
+@app.command()
+def delete(vector_store_id: str):
+    """
+    Deletes a vector store by its ID.
+    """
+    print(f"Attempting to delete vector store with ID: {vector_store_id}...")
+    try:
+        response = client.vector_stores.delete(vector_store_id=vector_store_id)
+        if response.deleted:
+            print(f"✅ Success! Vector store {vector_store_id} deleted.")
+        else:
+            print(f"⚠️ Deletion failed. Response: {response}")
+    except Exception as e:
+        print(f"❌ Error deleting vector store: {e}")
+
+if __name__ == "__main__":
+    app()
+
+
+--- FILE: tests/test_agent_classes.py ---
+from core.agents.base import BaseAgent
+from core.agents.coder import CoderAgent
+
+def test_coder_agent_instantiation():
+    mock_config = {
+        "name": "TestAgent", # New test
+        "class_name": "CoderAgent",
+        "model": "gpt-5-test",
+        "system_prompt": "Test prompt",
+        "tools": ["tool_one", "tool_two"]
+    }
+
+    agent = CoderAgent(config=mock_config)
+
+    assert isinstance(agent, CoderAgent)
+    assert isinstance(agent, BaseAgent)
+    assert agent.name == "TestAgent" # New test
+    assert agent.model == "gpt-5-test"
+    assert agent.system_prompt == "Test prompt"
+    assert agent.tools == ["tool_one", "tool_two"]
+
+
+--- FILE: tests/test_agent_loader.py ---
+import pytest
+from core.agent_loader import load_agent
+from core.agents.coder import CoderAgent
+
+def test_load_agent_success():
+    """Tests that the loader can successfully find and instantiate the CoderAgent."""
+    agent = load_agent(agent_name="coder")
+
+    assert isinstance(agent, CoderAgent), "The loaded agent should be an instance of CoderAgent"
+    assert agent.model == "gpt-5", "The agent's model was not loaded correctly from YAML"
+    assert "expert-level software development" in agent.system_prompt
+
+def test_load_agent_file_not_found():
+    """Tests that the loader raises FileNotFoundError for a non-existent agent."""
+    with pytest.raises(FileNotFoundError):
+        load_agent(agent_name="non_existent_agent")
+
+def test_load_agent_class_not_found(tmp_path):
+    """Tests that the loader raises AttributeError for a non-existent class."""
+    # Create a temporary bad config file
+    bad_config_content = """
+    class_name: ThisClassDoesNotExist
+    model: gpt-4
+    """
+    p = tmp_path / "bad_agent.yaml"
+    p.write_text(bad_config_content)
+
+    # We must load using the temporary path
+    with pytest.raises(AttributeError):
+        load_agent(agent_name="bad_agent", config_path=tmp_path)
+
+
+
+--- FILE: tests/test_coder_agent_methods.py ---
+from unittest.mock import patch
+
+# We need to test the methods on the CoderAgent class
+from core.agents.coder import CoderAgent
+
+dummy_config = {"name": "TestCoder"}
+agent = CoderAgent(config=dummy_config)
+
+@patch('core.agents.coder.execute_sandboxed_command')
+def test_run_tests_calls_executor(mock_executor):
+    """Tests that run_tests() calls the secure executor with the correct command."""
+    agent.run_tests(path="tests/")
+    mock_executor.assert_called_once_with(["python", "-m", "pytest", "tests/"])
+
+@patch('core.agents.coder.execute_sandboxed_command')
+def test_git_commit_calls_executor(mock_executor):
+    """Tests that git_commit() calls the secure executor for both 'add' and 'commit'."""
+    agent.git_commit(message="Test commit")
+
+    assert mock_executor.call_count == 2
+    # Check the 'git add' call
+    mock_executor.call_args_list[0].assert_called_with(["git", "add", "."])
+    # Check the 'git commit' call
+    mock_executor.call_args_list[1].assert_called_with(["git", "commit", "-m", "Test commit"])
+
+
+
+--- FILE: tests/test_config.py ---
+import os
+import yaml
+from dotenv import load_dotenv
+
+def test_load_env_file():
+    assert os.path.exists(".env"), ".env file not found"
+    load_dotenv()
+    api_key = os.getenv("OPENAI_API_KEY")
+    assert api_key is not None, "OPENAI_API_KEY not found in .env"
+    assert "your-openai-api-key" not in api_key, "Please replace the placeholder API key"
+
+def test_load_config_yaml():
+    assert os.path.exists("config.yaml"), "config.yaml not found"
+    with open("config.yaml", "r") as f:
+        config = yaml.safe_load(f)
+    assert "agent_config_path" in config
+    assert config["agent_config_path"] == "agents/"
+
+def test_load_coder_agent_yaml():
+    agent_path = "agents/coder.yaml"
+    assert os.path.exists(agent_path), "agents/coder.yaml not found"
+    with open(agent_path, "r") as f:
+        config = yaml.safe_load(f)
+    assert config["name"] == "CoderAgent" # New test
+    assert config["class_name"] == "CoderAgent"
+    assert config["model"] == "gpt-5"
+    assert "system_prompt" in config
+    assert isinstance(config["tools"], list)
+
+
+--- FILE: tests/test_hardening.py ---
+from unittest.mock import MagicMock
+import pytest
+import openai
+
+# We need to import the specific function we are testing
+from core.main import make_api_call
+
+def test_api_call_retries_on_500_error(mocker):
+    """
+    Tests that the make_api_call function retries on APIStatusError (5xx)
+    and succeeds on the final attempt.
+    """
+    # 1. Arrange
+    # Mock the OpenAI client that will be passed to our function
+    mock_client = MagicMock()
+
+    # Create a mock response object for the final, successful call
+    mock_success_response = MagicMock(id="success_id")
+
+    # Set up the side_effect: fail twice, then succeed.
+    mock_client.responses.create.side_effect = [
+        openai.APIStatusError("Server error", response=MagicMock(), body=None),
+        openai.APIStatusError("Server error", response=MagicMock(), body=None),
+        mock_success_response
+    ]
+
+    # 2. Act
+    # Call our hardened function
+    result = make_api_call(client=mock_client, payload={})
+
+    # 3. Assert
+    # Check that the create method was called 3 times (1 initial + 2 retries)
+    assert mock_client.responses.create.call_count == 3
+
+    # Check that the final result is the successful response
+    assert result.id == "success_id"
+
+
+
+--- FILE: tests/test_knowledge_integration.py ---
+from unittest.mock import MagicMock
+from core.agents.coder import CoderAgent
+
+def test_file_search_tool_is_added_first(mocker):
+    """
+    Tests that the file_search tool is correctly added as the FIRST element
+    and that the function tool has the correct FLAT structure.
+    """
+    # 1. Arrange
+    agent_config = {
+        "name": "KnowledgeableCoder",
+        "tools": ["read_file"], # Include a function tool for this test
+        "vector_store_id": "vs_test123"
+    }
+    agent = CoderAgent(config=agent_config)
+
+    mock_openai_client = MagicMock()
+    mock_openai_client.responses.create.return_value = MagicMock(output_text="OK", output=[])
+    mocker.patch('core.main.OpenAI', return_value=mock_openai_client)
+    mocker.patch('core.main.load_agent', return_value=agent)
+    mocker.patch('builtins.input', side_effect=["hello", KeyboardInterrupt])
+
+    # 2. Act
+    from core import main
+    main.chat()
+
+    # 3. Assert
+    mock_openai_client.responses.create.assert_called_once()
+    call_args = mock_openai_client.responses.create.call_args
+    api_tools = call_args.kwargs.get("tools", [])
+
+    assert len(api_tools) == 2
+
+    # Check that the FIRST tool is file_search
+    assert api_tools[0]["type"] == "file_search"
+    assert api_tools[0]["vector_store_ids"] == ["vs_test123"]
+    
+    # --- THE CRITICAL FIX IS HERE ---
+    # Check that the second tool is our function tool with a FLAT structure.
+    assert api_tools[1]["type"] == "function"
+    assert api_tools[1]["name"] == "read_file" # Check the 'name' key directly
+
+
+
+--- FILE: tests/test_schema_generator.py ---
+from core.schema_generator import generate_tool_schemas
+
+class MockAgent:
+    """A mock agent for testing schema generation."""
+    tools = ["get_weather", "get_stock_price"]
+
+    def get_weather(self, city: str, unit: str = "celsius") -> str:
+        """
+        Gets the current weather for a specified city.
+        
+        Args:
+            city: The name of the city.
+            unit: The temperature unit (celsius or fahrenheit).
+        """
+        return "Sunny"
+
+    def get_stock_price(self, symbol: str) -> float:
+        """
+        Gets the current stock price for a given symbol.
+
+        Args:
+            symbol: The stock ticker symbol.
+        """
+        return 150.75
+
+def test_generate_tool_schemas_is_flat():
+    """
+    Tests that the schema generator produces a flat structure for function tools.
+    """
+    mock_agent = MockAgent()
+    schemas = generate_tool_schemas(mock_agent)
+
+    assert len(schemas) == 2
+
+    weather_schema = next((s for s in schemas if s["name"] == "get_weather"), None)
+    assert weather_schema is not None
+    
+    # Assert that the main keys are at the top level, not nested.
+    assert weather_schema["type"] == "function"
+    assert weather_schema["name"] == "get_weather"
+    assert "parameters" in weather_schema
+
+    properties = weather_schema["parameters"]["properties"]
+    assert properties["city"]["description"] == "The name of the city."
+
+
+
+--- FILE: tests/test_tool_loop.py ---
+import json
+from unittest.mock import MagicMock
+import pytest
+from core.agents.coder import CoderAgent
+
+def test_full_tool_use_loop(mocker):
+    """
+    Tests that the second API call contains the complete transaction record
+    (the original tool call and its output).
+    """
+    # 1. Arrange
+    tool_call_mock = MagicMock()
+    tool_call_mock.type = "function_call"
+    tool_call_mock.name = "read_file"
+    tool_call_mock.arguments = json.dumps({"file_path": "test.txt"})
+    tool_call_mock.id = "call123"
+    # The .model_dump() method is part of the Pydantic model structure used by OpenAI's library
+    tool_call_mock.model_dump.return_value = {
+        "type": "function_call",
+        "name": "read_file",
+        "arguments": json.dumps({"file_path": "test.txt"}),
+        "id": "call123"
+    }
+
+    mock_tool_call_response = MagicMock()
+    mock_tool_call_response.id = "response1"
+    mock_tool_call_response.output = [tool_call_mock]
+
+    mock_final_response = MagicMock()
+    mock_final_response.id = "response2"
+    mock_final_response.output = []
+    mock_final_response.output_text = "The file contains: Hello"
+
+    mock_openai_client = MagicMock()
+    mock_openai_client.responses.create.side_effect = [
+        mock_tool_call_response,
+        mock_final_response
+    ]
+
+    mocker.patch('core.main.OpenAI', return_value=mock_openai_client)
+    agent = CoderAgent(config={"name": "TestCoder", "tools": ["read_file"]})
+    spy_read_file = mocker.spy(agent, 'read_file')
+    mocker.patch('core.main.load_agent', return_value=agent)
+    mock_input = mocker.patch('builtins.input')
+    mock_input.side_effect = ["read test.txt", KeyboardInterrupt]
+
+    # 2. Act
+    from core import main
+    main.chat()
+
+    # 3. Assert
+    spy_read_file.assert_called_once_with(file_path="test.txt")
+    assert mock_openai_client.responses.create.call_count == 2
+    
+    # --- THE CRITICAL FIX IS HERE ---
+    second_call_args = mock_openai_client.responses.create.call_args_list[1]
+    input_to_second_call = second_call_args.kwargs['input']
+    
+    # Verify the input is a list with two items
+    assert len(input_to_second_call) == 2
+    # Verify the first item is the original tool call
+    assert input_to_second_call[0]['type'] == 'function_call'
+    assert input_to_second_call[0]['id'] == 'call123'
+    # Verify the second item is the tool output
+    assert input_to_second_call[1]['type'] == 'function_call_output'
+    assert input_to_second_call[1]['call_id'] == 'call123'
+
+
+

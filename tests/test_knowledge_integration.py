@@ -1,10 +1,10 @@
 from unittest.mock import MagicMock
 from core.agents.coder import CoderAgent
 
-def test_file_search_tool_is_added_first(mocker):
+def test_file_search_tool_is_added_with_function_tools(mocker):
     """
-    Tests that the file_search tool is correctly added as the FIRST element
-    and that the function tool has the correct FLAT structure.
+    Tests that both function tools and file_search tool are correctly added
+    with the proper FLAT structure for function tools.
     """
     # 1. Arrange
     agent_config = {
@@ -31,12 +31,12 @@ def test_file_search_tool_is_added_first(mocker):
 
     assert len(api_tools) == 2
 
-    # Check that the FIRST tool is file_search
-    assert api_tools[0]["type"] == "file_search"
-    assert api_tools[0]["vector_store_ids"] == ["vs_test123"]
+    # Check that the FIRST tool is our function tool with a FLAT structure.
+    assert api_tools[0]["type"] == "function"
+    assert api_tools[0]["name"] == "read_file" # Check the 'name' key directly
+    assert "description" in api_tools[0]
+    assert "parameters" in api_tools[0]
     
-    # --- THE CRITICAL FIX IS HERE ---
-    # Check that the second tool is our function tool with a FLAT structure.
-    assert api_tools[1]["type"] == "function"
-    assert api_tools[1]["name"] == "read_file" # Check the 'name' key directly
-
+    # Check that the SECOND tool is file_search
+    assert api_tools[1]["type"] == "file_search"
+    assert api_tools[1]["vector_store_ids"] == ["vs_test123"]
