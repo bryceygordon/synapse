@@ -43,22 +43,22 @@ jobs:
           repo_path = Path('.')
           files_to_upload = [
               p for p in repo_path.rglob('*')
-              if p.is_file() and
+              # --- THE CRITICAL FIX IS HERE ---
+              # Add a check to ensure the file size is greater than zero.
+              if p.is_file() and p.stat().st_size > 0 and
               '.git' not in p.parts and
               '.github' not in p.parts and
               '.venv' not in p.parts and
               '__pycache__' not in p.parts
           ]
+          # --- End of critical fix section ---
 
           if not files_to_upload:
-              print('No files found to upload. Exiting.')
+              print('No non-empty files found to upload. Exiting.')
               exit(0)
               
-          print(f'Found {len(files_to_upload)} files to upload.')
+          print(f'Found {len(files_to_upload)} non-empty files to upload.')
           
-          # --- THE CRITICAL FIX IS HERE ---
-          # We must open the files and ensure they are closed, even if an error occurs.
-          # A 'with' statement cannot be used on a list, so we use a try...finally block.
           file_streams = [open(path, 'rb') for path in files_to_upload]
           try:
               file_batch = client.vector_stores.file_batches.upload_and_poll(
@@ -70,10 +70,8 @@ jobs:
               print(f'❌ An error occurred during file upload: {e}')
               exit(1)
           finally:
-              # This block ensures all opened files are closed, preventing resource leaks.
               for f in file_streams:
                   f.close()
-          # --- End of critical fix section ---
 
           print('--- Sync Complete ---')
           "
