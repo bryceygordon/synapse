@@ -41,15 +41,15 @@ jobs:
               exit(1)
 
           # --- THE CRITICAL FIX IS HERE ---
-          # Define a set of allowed extensions for code and documentation.
-          ALLOWED_EXTENSIONS = {'.py', '.md', '.toml', '.txt'}
+          # Define a strict set of extensions for SOURCE CODE and DOCS only.
+          ALLOWED_EXTENSIONS = {'.py', '.md'}
 
           repo_path = Path('.')
           files_to_upload = [
               p for p in repo_path.rglob('*')
               if p.is_file() and
                  p.stat().st_size > 0 and
-                 p.suffix in ALLOWED_EXTENSIONS and # Check against the allowlist
+                 p.suffix in ALLOWED_EXTENSIONS and # Check against the strict allowlist
                  '.git' not in p.parts and
                  '.github' not in p.parts and
                  '.venv' not in p.parts and
