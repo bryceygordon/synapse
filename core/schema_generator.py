@@ -1,7 +1,7 @@
 import inspect
+import re
 from typing import get_type_hints
 
-# A mapping from Python types to JSON Schema types.
 TYPE_MAPPING = {
     str: "string",
     int: "integer",
@@ -11,23 +11,28 @@ TYPE_MAPPING = {
     dict: "object",
 }
 
+def parse_docstring_args(docstring: str) -> dict[str, str]:
+    """Parses the 'Args:' section of a docstring."""
+    args_section = re.search(r'Args:(.*)', docstring, re.S)
+    if not args_section:
+        return {}
+    
+    args_str = args_section.group(1)
+    arg_lines = [line.strip() for line in args_str.strip().split('\n')]
+    
+    descriptions = {}
+    for line in arg_lines:
+        match = re.match(r'(\w+):\s*(.*)', line)
+        if match:
+            param_name, description = match.groups()
+            descriptions[param_name] = description
+            
+    return descriptions
+
 def generate_tool_schemas(agent_instance: object) -> list[dict]:
     """
     Generates OpenAI-compatible tool schemas by introspecting an agent's methods.
-
-    This function looks for methods on the agent instance that are listed in its
-    'tools' attribute. It then parses their docstrings and type hints to
-    automatically generate the JSON schema required by the OpenAI API.
-
-    The docstring is expected to follow a simple format:
-    - The first line is the function's description.
-    - An 'Args:' section describes the parameters.
-
-    Args:
-        agent_instance: An initialized agent object (e.g., CoderAgent).
-
-    Returns:
-        A list of dictionaries, where each dictionary is a valid OpenAI tool schema.
+    This version creates the correct flat structure for function tools.
     """
     schemas = []
     tool_names = getattr(agent_instance, 'tools', [])
@@ -41,11 +46,11 @@ def generate_tool_schemas(agent_instance: object) -> list[dict]:
         if not docstring:
             continue
 
-        # Parse the docstring
         lines = docstring.strip().split('\n')
         description = lines[0]
         
-        # Get function signature and type hints
+        param_descriptions = parse_docstring_args(docstring)
+        
         signature = inspect.signature(method)
         type_hints = get_type_hints(method)
         
@@ -58,29 +63,28 @@ def generate_tool_schemas(agent_instance: object) -> list[dict]:
             
             param_type = type_hints.get(param.name)
             if not param_type:
-                continue # Skip params without type hints for robustness
+                continue
                 
             properties[param.name] = {
                 "type": TYPE_MAPPING.get(param_type, "string"),
-                "description": f"Description for {param.name}." # Placeholder
+                "description": param_descriptions.get(param.name, "No description available.")
             }
             
             if param.default is inspect.Parameter.empty:
                 required.append(param.name)
 
+        # --- THE CRITICAL FIX IS HERE ---
+        # The schema is a single, flat dictionary.
         schema = {
             "type": "function",
-            "function": {
-                "name": tool_name,
-                "description": description,
-                "parameters": {
-                    "type": "object",
-                    "properties": properties,
-                    "required": required,
-                },
+            "name": tool_name,
+            "description": description,
+            "parameters": {
+                "type": "object",
+                "properties": properties,
+                "required": required,
             },
         }
         schemas.append(schema)
 
     return schemas
-

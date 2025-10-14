@@ -1,0 +1,42 @@
+from unittest.mock import MagicMock
+from core.agents.coder import CoderAgent
+
+def test_file_search_tool_is_added_first(mocker):
+    """
+    Tests that the file_search tool is correctly added as the FIRST element
+    and that the function tool has the correct FLAT structure.
+    """
+    # 1. Arrange
+    agent_config = {
+        "name": "KnowledgeableCoder",
+        "tools": ["read_file"], # Include a function tool for this test
+        "vector_store_id": "vs_test123"
+    }
+    agent = CoderAgent(config=agent_config)
+
+    mock_openai_client = MagicMock()
+    mock_openai_client.responses.create.return_value = MagicMock(output_text="OK", output=[])
+    mocker.patch('core.main.OpenAI', return_value=mock_openai_client)
+    mocker.patch('core.main.load_agent', return_value=agent)
+    mocker.patch('builtins.input', side_effect=["hello", KeyboardInterrupt])
+
+    # 2. Act
+    from core import main
+    main.chat()
+
+    # 3. Assert
+    mock_openai_client.responses.create.assert_called_once()
+    call_args = mock_openai_client.responses.create.call_args
+    api_tools = call_args.kwargs.get("tools", [])
+
+    assert len(api_tools) == 2
+
+    # Check that the FIRST tool is file_search
+    assert api_tools[0]["type"] == "file_search"
+    assert api_tools[0]["vector_store_ids"] == ["vs_test123"]
+    
+    # --- THE CRITICAL FIX IS HERE ---
+    # Check that the second tool is our function tool with a FLAT structure.
+    assert api_tools[1]["type"] == "function"
+    assert api_tools[1]["name"] == "read_file" # Check the 'name' key directly
+

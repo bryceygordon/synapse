@@ -1,6 +1,7 @@
 import os
 import json
 import typer
+import pprint
 from openai import OpenAI
 from dotenv import load_dotenv
 
@@ -21,8 +22,18 @@ def chat():
 
     try:
         agent = load_agent(agent_name="coder")
-        tools_for_api = generate_tool_schemas(agent)
-        print(f"✅ Agent '{agent.name}' loaded successfully. Model: {agent.model}. Tools: {[t['function']['name'] for t in tools_for_api]}")
+        
+        tools_for_api = []
+        if agent.vector_store_id:
+            tools_for_api.append({"type": "file_search", "vector_store_ids": [agent.vector_store_id]})
+            print(f"🧠 Knowledge enabled with Vector Store: {agent.vector_store_id}")
+        
+        function_tool_schemas = generate_tool_schemas(agent)
+        tools_for_api.extend(function_tool_schemas)
+
+        tool_names = [t.get("name") for t in function_tool_schemas]
+        print(f"✅ Agent '{agent.name}' loaded successfully. Model: {agent.model}. Tools: {tool_names}")
+    
     except (FileNotFoundError, AttributeError, KeyError) as e:
         print(f"❌ Error loading agent: {e}")
         raise typer.Exit()
@@ -34,15 +45,12 @@ def chat():
 
     while True:
         try:
-            # --- REVISED LOGIC: Decide what the input for this turn is ---
             if next_input:
-                # If there's pending tool output, that's our input
                 current_input = next_input
-                next_input = None # Clear it for the next iteration
+                next_input = None
             else:
-                # Otherwise, get input from the user
                 user_text = input("\n> ")
-                current_input = [{"type": "text", "text": user_text}]
+                current_input = [{"type": "message", "role": "user", "content": user_text}]
 
             print(f"\nSending request to {agent.name}...", flush=True)
 
@@ -62,25 +70,27 @@ def chat():
             tool_call = next((item for item in response.output if item.type == "function_call"), None)
 
             if tool_call:
-                # If a tool is called, invoke it and set up the next input
-                function_name = tool_call.function.name
-                arguments = json.loads(tool_call.function.arguments)
+                function_name = tool_call.name
+                arguments = json.loads(tool_call.arguments)
                 
                 print(f"🛠️  Invoking tool: {function_name}(**{arguments})")
                 
                 method_to_call = getattr(agent, function_name)
                 tool_output = method_to_call(**arguments)
                 
-                # Prepare the input for the *next* iteration of the loop
-                next_input = [{
-                    "type": "function_call_output",
-                    "call_id": tool_call.id,
-                    "output": tool_output
-                }]
-                # Continue to the next loop iteration immediately
+                # --- THE CRITICAL FIX IS HERE ---
+                # We must send back a complete record of the tool call and its output.
+                # The .model_dump() method converts the Pydantic object to a dictionary.
+                next_input = [
+                    tool_call.model_dump(),
+                    {
+                        "type": "function_call_output",
+                        "call_id": tool_call.id,
+                        "output": tool_output
+                    }
+                ]
                 continue
             
-            # If no tool call, print the text response
             if response.output_text:
                 print(f"\nAssistant: {response.output_text}")
 
@@ -90,7 +100,7 @@ def chat():
         except Exception as e:
             print(f"\nAn error occurred: {e}")
             last_response_id = None
-            next_input = None # Reset state on error
+            next_input = None
 
 if __name__ == "__main__":
     app()
