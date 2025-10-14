@@ -1,0 +1,27 @@
+# Python bytecode and cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Virtual Environment
+.venv/
+venv/
+ENV/
+env/
+# NOTE: If you name your virtual environment something else, add it here.
+
+# IDE and editor configuration files
+.vscode/
+.idea/
+*.swp
+
+# Environment variables - VERY IMPORTANT
+.env
+
+# Log files
+*.log
+
+# Test artifacts
+.pytest_cache/
+htmlcov/
