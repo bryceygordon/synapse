@@ -1,25 +1,29 @@
-[tool.poetry]
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
 name = "synapse"
 version = "0.1.0"
 description = "A modular, command-line-first AI orchestration engine."
-authors = ["Your Name <you@example.com>"]
-
-packages = [
-    { include = "core" },
-    { include = "tools" },
+authors = [
+  { name="Your Name", email="you@example.com" },
+]
+requires-python = ">=3.11"
+dependencies = [
+    "openai>=1.35.3",
+    "typer[all]>=0.12.3",
+    "pyyaml>=6.0.1",
+    "python-dotenv>=1.0.1",
+    "tenacity>=8.4.1",
 ]
 
-[tool.poetry.dependencies]
-python = "^3.11"
-openai = "^1.35.3"
-typer = {extras = ["all"], version = "^0.12.3"}
-pyyaml = "^6.0.1"
-python-dotenv = "^1.0.1"
-tenacity = "^8.4.1"
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.2.2",
+]
 
-[tool.poetry.group.dev.dependencies]
-pytest = "^8.2.2"
-
-[build-system]
-requires = ["poetry-core"]
-build-backend = "poetry.core.masonry.api"
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["core*", "tools*"]
+exclude = ["tests*"]
