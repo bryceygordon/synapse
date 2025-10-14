@@ -1,0 +1,5 @@
+# Global application settings for Synapse
+# ---
+
+# Path to the directory where agent configurations are stored.
+agent_config_path: "agents/"
