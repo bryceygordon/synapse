@@ -126,6 +126,7 @@ All AI platform differences are encapsulated in provider classes:
 - `list_sections()` - See sections
 - `list_labels()` - See all labels
 - `query_rules()` - Read knowledge files
+- `update_rules()` - Save learned preferences to knowledge files (with confirmation)
 
 **GTD System:**
 The agent follows the user's specific GTD methodology:
@@ -133,7 +134,11 @@ The agent follows the user's specific GTD methodology:
 - Contexts as primary organization (@home, @yard, @errand, @computer, @chore, @bec, @waiting, etc.)
 - Conservative priority usage (P1-P4, mostly P1)
 - Due dates only for hard deadlines
-- Learning protocol - asks before storing new rules
+- **Memory System:**
+  - Agent learns preferences through conversations
+  - Stores rules in `knowledge/todoist_rules.md`
+  - Always confirms with "✅ MEMORY UPDATED" after saving
+  - Reads rules on startup via `query_rules()`, updates via `update_rules()`
 
 **Configuration:** `agents/todoist.yaml`
 

@@ -6,15 +6,100 @@
 
 ---
 
-## Processing Rules
+## Weekly Review Process
 
-*Agent will add rules here as it learns user preferences*
+The user has a specific weekly review workflow that must be followed:
+
+### Review Order:
+1. **Inbox Processing** (free-flowing, natural language)
+2. **#Processed Review** (oldest→newest, batches of 5 or less)
+3. **#Routine Review** (fitness for purpose)
+4. **#Reminder Review**
+5. **Other Projects Review**
+
+### Key Principles:
+- Present items in **batches of 5 or less** to maintain smooth flow
+- User gives natural language instructions - agent must intuit meaning
+- Gather ALL information before processing any task (full optimization)
+- Check for **recently completed next actions** and ask what needs to be done next
+- Use task IDs to store context for future reference
+
+---
+
+## Task Processing Rules
+
+### Timeframe Labels (Task Duration Estimation):
+- **@quick**: Short tasks (< 30 minutes)
+- **@medium**: Medium tasks (30-60 minutes)
+- **@long**: Long tasks (1-2+ hours)
+
+### Energy Labels (Required for ALL chores):
+- **@lowenergy**: Tasks needing minimal energy
+- **@medenergy**: Tasks needing moderate energy
+- **@highenergy**: Tasks needing significant energy
+  - For @highenergy chores: Ask if kids need to be away
+  - If yes, add **@nokids** tag
+
+### Next Actions (CRITICAL):
+- **EVERY task MUST have a @next subtask** (next action)
+- Next action = immediate, physical action to move task forward
+- Next action format: Subtask with `@next` label
+- Examples:
+  - Main: "Repair sprinkler out front"
+  - Next: "Go to shed and check if spare sprinkler bodies available" @next
+  - If parts needed: Create new task "Buy sprinkler parts from irrigation store"
+
+### Task Name vs Description:
+- If user's description is verbose, create snapshot task name
+- Put full detail in task description field
+- Task name should be easily recognizable at a glance
+
+---
+
+## Processing Patterns
+
+### Duplicate Detection:
+- ALWAYS check #processed for existing tasks before creating from inbox
+- If duplicate found in inbox, delete inbox copy
+- Maintain single source of truth for each task
+
+### Task Optimization:
+- Must gather ALL information before processing
+- Every task should be fully categorized (contexts, energy, timeframe)
+- Agent should learn user's categorization preferences
+- Over time, **intuit** how user will categorize tasks and present suggestions
+  - User can then just say "yes" or refine specific aspects
+
+### Completed Next Actions Workflow:
+- On every review (not just weekly), check recently completed @next actions
+- Find parent tasks with completed next actions
+- Ask user: "What's the next action for [task name]?"
+- Update with new @next subtask
+
+---
+
+## Chore-Specific Rules
+
+### All Chores Must Have:
+1. Timeframe label (@quick, @medium, @long)
+2. Energy label (@lowenergy, @medenergy, @highenergy)
+3. Context labels (e.g., @home, @yard, @chore)
+4. Next action subtask (@next)
+
+### High Energy Chores:
+- Always ask: "Do the kids need to be away?"
+- If yes, add @nokids label
+
+### Examples:
+- "sweep under the couch":
+  - @home @chore @long @medenergy
+  - Next: "Get vacuum cleaner from cupboard" @next
 
 ---
 
 ## Context Inference Rules
 
-*Agent learns when to automatically apply which contexts*
+*Agent will learn when to automatically apply which contexts based on user patterns*
 
 ---
 

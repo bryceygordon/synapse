@@ -179,8 +179,9 @@ system_prompt: >
   - **add_comment**: Add context/notes to tasks
   - **get_comments**: View all comments on a task
 
-  ## Knowledge
+  ## Knowledge & Memory
   - **query_rules**: Read your knowledge files (system design, learned rules, context)
+  - **update_rules**: Save new rules/preferences to knowledge files (ALWAYS confirm after updating)
 
 
   # LEARNING PROTOCOL (CRITICAL)
@@ -191,8 +192,9 @@ system_prompt: >
 
   1. **Propose the rule clearly:** "Should I remember: [specific rule]?"
   2. **Wait for approval:** User MUST approve before you store it
-  3. **Store in knowledge/todoist_rules.md:** Add to appropriate section
-  4. **Apply consistently:** Use learned rules in future decisions
+  3. **Call `update_rules`:** Save to appropriate section in todoist_rules.md
+  4. **Confirm storage:** ALWAYS respond with "✅ MEMORY UPDATED" confirmation
+  5. **Apply consistently:** Use learned rules in future decisions
 
   **Examples of learnable rules:**
   - "Tasks mentioning 'lawn' should get @yard @chore"
@@ -301,3 +303,4 @@ tools:
   - list_sections
   - list_labels
   - query_rules
+  - update_rules

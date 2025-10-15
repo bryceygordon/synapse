@@ -765,3 +765,91 @@ class TodoistAgent(BaseAgent):
 
         except Exception as e:
             return self._error("FileError", f"Failed to read rules: {str(e)}")
+
+    def update_rules(
+        self,
+        section: str,
+        rule_content: str,
+        operation: str = "append"
+    ) -> str:
+        """
+        Updates the learned rules knowledge file.
+
+        Use this tool to save new preferences, patterns, and rules as you learn them
+        from conversations with the user. This ensures persistent memory across sessions.
+
+        Args:
+            section: The section to update (e.g., "Processing Rules", "Weekly Review", "Task Patterns")
+            rule_content: The rule or preference to add (markdown formatted)
+            operation: How to update - "append" adds to section, "replace" replaces section content
+
+        IMPORTANT: Always call this with a confirmation message after updating.
+        """
+        try:
+            # Ensure knowledge directory exists
+            self.knowledge_dir.mkdir(parents=True, exist_ok=True)
+
+            # Read current rules file
+            if self.rules_file.exists():
+                content = self.rules_file.read_text()
+            else:
+                # Create initial structure if file doesn't exist
+                content = """# Learned GTD Rules
+
+**Purpose:** This file stores learned preferences and patterns discovered through conversations.
+**Maintained by:** TodoistAgent (updated with user approval)
+**Last updated:** {date}
+
+---
+
+"""
+
+            # Update the last modified date
+            now = datetime.now(self.timezone)
+            date_str = now.strftime("%Y-%m-%d")
+            content = content.replace("**Last updated:**", f"**Last updated:** {date_str}\n**Last updated:**").replace(f"**Last updated:** {date_str}\n**Last updated:**", f"**Last updated:** {date_str}")
+
+            # Find or create the section
+            section_header = f"## {section}"
+
+            if section_header in content:
+                # Section exists
+                if operation == "replace":
+                    # Replace entire section content
+                    import re
+                    # Match from section header to next ## or end of file
+                    pattern = f"({re.escape(section_header)}\n)(.*?)(\n##|$)"
+                    replacement = f"\\1\n{rule_content}\n\\3"
+                    content = re.sub(pattern, replacement, content, flags=re.DOTALL)
+                else:
+                    # Append to section
+                    # Find the section and add content after the header
+                    section_pos = content.find(section_header)
+                    if section_pos != -1:
+                        # Find the end of the section (next ## or end of file)
+                        next_section = content.find("\n##", section_pos + len(section_header))
+                        if next_section != -1:
+                            # Insert before next section
+                            content = content[:next_section] + f"\n{rule_content}\n" + content[next_section:]
+                        else:
+                            # Append at end
+                            content += f"\n{rule_content}\n"
+            else:
+                # Section doesn't exist, create it
+                content += f"\n{section_header}\n\n{rule_content}\n\n---\n"
+
+            # Write updated content
+            self.rules_file.write_text(content)
+
+            return self._success(
+                f"✅ MEMORY UPDATED: Added to '{section}' section",
+                data={
+                    "section": section,
+                    "operation": operation,
+                    "file": str(self.rules_file),
+                    "confirmation": f"Rules successfully saved to {section}. Memory persisted."
+                }
+            )
+
+        except Exception as e:
+            return self._error("FileError", f"Failed to update rules: {str(e)}")
