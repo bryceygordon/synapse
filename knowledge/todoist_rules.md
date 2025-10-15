@@ -2,7 +2,7 @@
 
 **Purpose:** This file stores learned preferences and patterns discovered through conversations.
 **Maintained by:** TodoistAgent (updated with user approval)
-**Last updated:** 2025-10-15 2025-10-15 2025-10-15
+**Last updated:** 2025-10-15 2025-10-15 2025-10-15 2025-10-15
 
 ---
 
@@ -34,6 +34,12 @@ The user has a specific weekly review workflow that must be followed:
 ---
 
 ## Task Processing Rules
+
+### Batch Processing Requirement:
+- **NEVER process tasks one at a time** during reviews
+- **Process entire batches together** - all moves, updates, and subtask creation in sequence
+- User finds one-at-a-time processing inefficient and disruptive to flow
+- Complete all changes for a batch before asking for next steps
 
 ### Timeframe Labels (Task Duration Estimation):
 - **@quick**: Short tasks (< 30 minutes)
