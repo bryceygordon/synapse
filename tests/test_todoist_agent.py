@@ -299,6 +299,138 @@ def test_list_tasks_empty(agent, mock_todoist_api):
     assert "No tasks found" in data["message"]
 
 
+def test_list_tasks_includes_created_at(agent, mock_todoist_api, mock_task):
+    """Test that list_tasks includes created_at field."""
+    mock_todoist_api.get_tasks.return_value = iter([[mock_task]])
+
+    result = agent.list_tasks()
+
+    data = json.loads(result)
+    assert data["status"] == "success"
+    assert "created_at" in data["data"]["tasks"][0]
+    assert data["data"]["tasks"][0]["created_at"] == "2025-01-01T00:00:00Z"
+
+
+def test_list_tasks_sort_by_created_desc(agent, mock_todoist_api):
+    """Test sorting tasks by creation date (newest first)."""
+    # Create multiple tasks with different created_at times
+    task1 = Mock(spec=Task)
+    task1.id = "task1"
+    task1.content = "Oldest task"
+    task1.project_id = "proj123"
+    task1.labels = []
+    task1.priority = 1
+    task1.due = None
+    task1.url = "https://todoist.com/app/task/1"
+    task1.created_at = "2025-01-01T00:00:00Z"
+
+    task2 = Mock(spec=Task)
+    task2.id = "task2"
+    task2.content = "Middle task"
+    task2.project_id = "proj123"
+    task2.labels = []
+    task2.priority = 1
+    task2.due = None
+    task2.url = "https://todoist.com/app/task/2"
+    task2.created_at = "2025-01-02T00:00:00Z"
+
+    task3 = Mock(spec=Task)
+    task3.id = "task3"
+    task3.content = "Newest task"
+    task3.project_id = "proj123"
+    task3.labels = []
+    task3.priority = 1
+    task3.due = None
+    task3.url = "https://todoist.com/app/task/3"
+    task3.created_at = "2025-01-03T00:00:00Z"
+
+    mock_todoist_api.get_tasks.return_value = iter([[task1, task2, task3]])
+
+    result = agent.list_tasks(sort_by="created_desc")
+
+    data = json.loads(result)
+    assert data["status"] == "success"
+    tasks = data["data"]["tasks"]
+
+    # Should be sorted newest first
+    assert tasks[0]["id"] == "task3"
+    assert tasks[1]["id"] == "task2"
+    assert tasks[2]["id"] == "task1"
+
+
+def test_list_tasks_sort_by_created_asc(agent, mock_todoist_api):
+    """Test sorting tasks by creation date (oldest first)."""
+    # Create multiple tasks with different created_at times
+    task1 = Mock(spec=Task)
+    task1.id = "task1"
+    task1.content = "Oldest task"
+    task1.project_id = "proj123"
+    task1.labels = []
+    task1.priority = 1
+    task1.due = None
+    task1.url = "https://todoist.com/app/task/1"
+    task1.created_at = "2025-01-01T00:00:00Z"
+
+    task2 = Mock(spec=Task)
+    task2.id = "task2"
+    task2.content = "Newest task"
+    task2.project_id = "proj123"
+    task2.labels = []
+    task2.priority = 1
+    task2.due = None
+    task2.url = "https://todoist.com/app/task/2"
+    task2.created_at = "2025-01-02T00:00:00Z"
+
+    mock_todoist_api.get_tasks.return_value = iter([[task2, task1]])  # Return in wrong order
+
+    result = agent.list_tasks(sort_by="created_asc")
+
+    data = json.loads(result)
+    assert data["status"] == "success"
+    tasks = data["data"]["tasks"]
+
+    # Should be sorted oldest first
+    assert tasks[0]["id"] == "task1"
+    assert tasks[1]["id"] == "task2"
+
+
+def test_list_tasks_sort_by_priority_desc(agent, mock_todoist_api):
+    """Test sorting tasks by priority (highest first)."""
+    task1 = Mock(spec=Task)
+    task1.id = "task1"
+    task1.content = "High priority"
+    task1.project_id = "proj123"
+    task1.labels = []
+    task1.priority = 4
+    task1.due = None
+    task1.url = "https://todoist.com/app/task/1"
+    task1.created_at = "2025-01-01T00:00:00Z"
+
+    task2 = Mock(spec=Task)
+    task2.id = "task2"
+    task2.content = "Low priority"
+    task2.project_id = "proj123"
+    task2.labels = []
+    task2.priority = 1
+    task2.due = None
+    task2.url = "https://todoist.com/app/task/2"
+    task2.created_at = "2025-01-01T00:00:00Z"
+
+    mock_todoist_api.get_tasks.return_value = iter([[task2, task1]])  # Return in wrong order
+
+    result = agent.list_tasks(sort_by="priority_desc")
+
+    data = json.loads(result)
+    assert data["status"] == "success"
+    tasks = data["data"]["tasks"]
+
+    # Should be sorted by priority descending (4 before 1)
+    assert tasks[0]["id"] == "task1"
+    assert tasks[0]["priority"] == 4
+    assert tasks[1]["id"] == "task2"
+    assert tasks[1]["priority"] == 1
+
+
 # =============================================================================
 # TASK UPDATE TESTS
 # =============================================================================
@@ -359,7 +491,7 @@ def test_complete_task(agent, mock_todoist_api, mock_task):
     data = json.loads(result)
     assert data["status"] == "success"
     assert "Completed task" in data["message"]
-    mock_todoist_api.close_task.assert_called_once_with("task123")
+    mock_todoist_api.complete_task.assert_called_once_with("task123")
 
 
 def test_reopen_task(agent, mock_todoist_api, mock_task):
@@ -394,6 +526,7 @@ def test_move_task(agent, mock_todoist_api, mock_project, mock_task):
     """Test moving a task to another project."""
     mock_todoist_api.get_projects.return_value = iter([[mock_project]])
     mock_todoist_api.move_task.return_value = mock_task
+    mock_todoist_api.get_task.return_value = mock_task  # Need to mock get_task since move_task calls it
 
     result = agent.move_task(task_id="task123", project_name="Processed")
 

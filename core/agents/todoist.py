@@ -262,7 +262,8 @@ class TodoistAgent(BaseAgent):
         self,
         project_name: str = None,
         label: str = None,
-        filter_query: str = None
+        filter_query: str = None,
+        sort_by: str = None
     ) -> str:
         """
         Lists tasks from Todoist.
@@ -271,6 +272,7 @@ class TodoistAgent(BaseAgent):
             project_name: Filter by project name (e.g., "Inbox", "Processed")
             label: Filter by label (e.g., "home", "urgent")
             filter_query: Advanced Todoist filter query (e.g., "today | overdue")
+            sort_by: Sort tasks by field (options: "created_asc", "created_desc", "priority_asc", "priority_desc")
         """
         try:
             tasks = []
@@ -298,6 +300,17 @@ class TodoistAgent(BaseAgent):
             if not tasks:
                 return self._success("No tasks found")
 
+            # Sort tasks if requested
+            if sort_by:
+                if sort_by == "created_asc":
+                    tasks = sorted(tasks, key=lambda t: t.created_at if t.created_at else "")
+                elif sort_by == "created_desc":
+                    tasks = sorted(tasks, key=lambda t: t.created_at if t.created_at else "", reverse=True)
+                elif sort_by == "priority_asc":
+                    tasks = sorted(tasks, key=lambda t: t.priority)
+                elif sort_by == "priority_desc":
+                    tasks = sorted(tasks, key=lambda t: t.priority, reverse=True)
+
             # Format task list
             task_list = []
             for task in tasks:
@@ -308,6 +321,7 @@ class TodoistAgent(BaseAgent):
                     "labels": task.labels,
                     "priority": task.priority,
                     "due": task.due.string if task.due else None,
+                    "created_at": str(task.created_at) if task.created_at else None,
                     "url": task.url
                 }
                 task_list.append(task_info)
