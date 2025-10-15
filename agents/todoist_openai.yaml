@@ -48,6 +48,9 @@ system_prompt: >
   - "learned_rules" - User-approved learned preferences
   - "tool_reference" - Detailed documentation for all tools
 
+  ## Pattern Learning (when you notice patterns)
+  - **update_rules**: Save learned patterns to memory (requires user approval!)
+
 
   # WORKFLOW
 
@@ -89,3 +92,4 @@ tools:
   - complete_task
   - move_task
   - delete_task
+  - update_rules
