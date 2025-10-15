@@ -4,26 +4,32 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "synapse"
-version = "0.1.0"
-description = "A modular, command-line-first AI orchestration engine."
+version = "0.2.0"
+description = "A universal, multi-platform AI orchestration engine for agentic workflows"
 authors = [
-  { name="Your Name", email="you@example.com" },
+  { name="Bryce Gordon", email="bryce@example.com" },
 ]
 requires-python = ">=3.11"
 dependencies = [
-    "openai>=1.35.3",
+    "anthropic>=0.69.0",
+    "chromadb>=1.1.1",
+    "todoist-api-python>=3.1.0",
     "typer[all]>=0.12.3",
     "pyyaml>=6.0.1",
     "python-dotenv>=1.0.1",
-    "tenacity>=8.4.1",
+    "requests>=2.32.3",
 ]
 
 [project.optional-dependencies]
 dev = [
     "pytest>=8.2.2",
+    "pytest-mock>=3.15.1",
 ]
+
+[project.scripts]
+synapse = "core.main:app"
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["core*", "tools*"]
+include = ["core*", "agents*", "knowledge*"]
 exclude = ["tests*"]

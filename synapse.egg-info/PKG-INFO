@@ -1,13 +1,16 @@
 Metadata-Version: 2.4
 Name: synapse
-Version: 0.1.0
-Summary: A modular, command-line-first AI orchestration engine.
-Author-email: Your Name <you@example.com>
+Version: 0.2.0
+Summary: A universal, multi-platform AI orchestration engine for agentic workflows
+Author-email: Bryce Gordon <bryce@example.com>
 Requires-Python: >=3.11
-Requires-Dist: openai>=1.35.3
+Requires-Dist: anthropic>=0.69.0
+Requires-Dist: chromadb>=1.1.1
+Requires-Dist: todoist-api-python>=3.1.0
 Requires-Dist: typer[all]>=0.12.3
 Requires-Dist: pyyaml>=6.0.1
 Requires-Dist: python-dotenv>=1.0.1
-Requires-Dist: tenacity>=8.4.1
+Requires-Dist: requests>=2.32.3
 Provides-Extra: dev
 Requires-Dist: pytest>=8.2.2; extra == "dev"
+Requires-Dist: pytest-mock>=3.15.1; extra == "dev"
