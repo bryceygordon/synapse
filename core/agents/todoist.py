@@ -48,7 +48,10 @@ class TodoistAgent(BaseAgent):
     def _get_projects(self) -> list[Project]:
         """Get all projects, using cache if available."""
         if self._projects_cache is None:
-            self._projects_cache = self.api.get_projects()
+            # get_projects() returns a ResultsPaginator
+            # First iteration yields the complete list of projects
+            projects_paginator = self.api.get_projects()
+            self._projects_cache = next(iter(projects_paginator))
         return self._projects_cache
 
     def _find_project_by_name(self, project_name: str) -> Optional[Project]:
@@ -58,6 +61,12 @@ class TodoistAgent(BaseAgent):
             if project.name.lower() == project_name.lower():
                 return project
         return None
+
+    def _get_tasks_list(self, **kwargs) -> list[Task]:
+        """Get tasks as a list (handles ResultsPaginator)."""
+        tasks_paginator = self.api.get_tasks(**kwargs)
+        # ResultsPaginator's first iteration returns the full list
+        return next(iter(tasks_paginator))
 
     def _success(self, content: str, data: dict = None) -> str:
         """Helper to return structured success response."""
@@ -168,7 +177,7 @@ class TodoistAgent(BaseAgent):
 
             if filter_query:
                 # Use advanced filter
-                tasks = self.api.get_tasks(filter=filter_query)
+                tasks = self._get_tasks_list(filter=filter_query)
             elif project_name:
                 # Filter by project
                 project = self._find_project_by_name(project_name)
@@ -177,14 +186,14 @@ class TodoistAgent(BaseAgent):
                         "ProjectNotFound",
                         f"Project '{project_name}' not found"
                     )
-                tasks = self.api.get_tasks(project_id=project.id)
+                tasks = self._get_tasks_list(project_id=project.id)
             elif label:
                 # Filter by label (remove @ prefix if present)
                 clean_label = label.lstrip('@')
-                tasks = self.api.get_tasks(label=clean_label)
+                tasks = self._get_tasks_list(label=clean_label)
             else:
                 # Get all tasks
-                tasks = self.api.get_tasks()
+                tasks = self._get_tasks_list()
 
             if not tasks:
                 return self._success("No tasks found")
