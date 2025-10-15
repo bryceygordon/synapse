@@ -97,9 +97,22 @@ def display_token_usage(session_tokens: dict, agent_name: str, model: str):
     table.add_row("Total Tokens", f"[bold]{session_tokens['total']:,}[/bold]", f"[bold]{avg_total:,.1f}[/bold]")
     table.add_row("API Calls", f"{session_tokens['turns']}", "-")
 
+    # Add cache statistics if any tokens were cached
+    if session_tokens["cached"] > 0:
+        cache_pct = (session_tokens["cached"] / session_tokens["input"] * 100) if session_tokens["input"] > 0 else 0
+        table.add_row(
+            "[green]Cached Tokens[/green]",
+            f"[green]{session_tokens['cached']:,}[/green]",
+            f"[green]{cache_pct:.1f}% cache hit[/green]"
+        )
+
     console.print("\n")
     console.print(table)
     console.print(f"[dim]Agent: {agent_name} | Model: {model}[/dim]")
+
+    # Show savings message if caching was used
+    if session_tokens["cached"] > 0:
+        console.print(f"[green]💰 Prompt caching saved ~{session_tokens['cached']} tokens from being charged at full price![/green]")
 
 
 def display_tool_result(tool_name: str, result: str):
@@ -220,6 +233,7 @@ def chat(agent_name: str = "coder"):
         "input": 0,
         "output": 0,
         "total": 0,
+        "cached": 0,
         "turns": 0
     }
 
@@ -248,6 +262,7 @@ def chat(agent_name: str = "coder"):
                 session_tokens["input"] += response.usage.input_tokens
                 session_tokens["output"] += response.usage.output_tokens
                 session_tokens["total"] += response.usage.total_tokens
+                session_tokens["cached"] += response.usage.cached_tokens
                 session_tokens["turns"] += 1
 
         # Execute startup tool calls
@@ -298,6 +313,7 @@ def chat(agent_name: str = "coder"):
                     session_tokens["input"] += response.usage.input_tokens
                     session_tokens["output"] += response.usage.output_tokens
                     session_tokens["total"] += response.usage.total_tokens
+                    session_tokens["cached"] += response.usage.cached_tokens
                     session_tokens["turns"] += 1
 
             if response.text:
@@ -332,6 +348,7 @@ def chat(agent_name: str = "coder"):
                     session_tokens["input"] += response.usage.input_tokens
                     session_tokens["output"] += response.usage.output_tokens
                     session_tokens["total"] += response.usage.total_tokens
+                    session_tokens["cached"] += response.usage.cached_tokens
                     session_tokens["turns"] += 1
 
             # Handle tool calls
@@ -405,8 +422,12 @@ def chat(agent_name: str = "coder"):
 
             # Show token usage for this turn if available
             if response.usage:
+                cache_info = ""
+                if response.usage.cached_tokens > 0:
+                    cache_pct = (response.usage.cached_tokens / response.usage.input_tokens * 100) if response.usage.input_tokens > 0 else 0
+                    cache_info = f" [green]({response.usage.cached_tokens} cached = {cache_pct:.0f}% cache hit)[/green]"
                 console.print(
-                    f"[dim]Tokens: {response.usage.input_tokens} in + {response.usage.output_tokens} out = "
+                    f"[dim]Tokens: {response.usage.input_tokens} in{cache_info} + {response.usage.output_tokens} out = "
                     f"{response.usage.total_tokens} total[/dim]"
                 )
 

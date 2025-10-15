@@ -127,10 +127,16 @@ class OpenAIProvider(BaseProvider):
         # Extract token usage information
         usage = None
         if response.usage:
+            # Check for cached tokens (OpenAI automatic prompt caching)
+            cached_tokens = 0
+            if hasattr(response.usage, 'prompt_tokens_details') and response.usage.prompt_tokens_details:
+                cached_tokens = getattr(response.usage.prompt_tokens_details, 'cached_tokens', 0)
+
             usage = TokenUsage(
                 input_tokens=response.usage.prompt_tokens,
                 output_tokens=response.usage.completion_tokens,
-                total_tokens=response.usage.total_tokens
+                total_tokens=response.usage.total_tokens,
+                cached_tokens=cached_tokens
             )
 
         return ProviderResponse(

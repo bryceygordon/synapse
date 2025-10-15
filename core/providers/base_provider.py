@@ -34,10 +34,12 @@ class TokenUsage:
         input_tokens: Tokens used for input (prompt, system, messages, tools)
         output_tokens: Tokens used for output (response text, tool calls)
         total_tokens: Total tokens used (input + output)
+        cached_tokens: Tokens retrieved from cache (if supported by provider)
     """
     input_tokens: int
     output_tokens: int
     total_tokens: int
+    cached_tokens: int = 0
 
 
 @dataclass
