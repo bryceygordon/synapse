@@ -129,10 +129,9 @@ class TestProviderFactory:
 
     def test_get_anthropic_provider(self):
         """Test loading the Anthropic provider."""
-        # This will fail until AnthropicProvider is implemented in Phase 2
-        # For now, we expect an ImportError
-        with pytest.raises((ImportError, ModuleNotFoundError)):
-            provider = get_provider("anthropic")
+        provider = get_provider("anthropic")
+        assert provider is not None
+        assert provider.__class__.__name__ == "AnthropicProvider"
 
     def test_get_openai_provider_not_implemented(self):
         """Test that OpenAI provider raises NotImplementedError."""
@@ -152,15 +151,14 @@ class TestProviderFactory:
 
     def test_provider_name_case_insensitive(self):
         """Test that provider names are case-insensitive."""
-        # All should raise the same error (or load the same provider once implemented)
-        with pytest.raises((ValueError, ImportError, NotImplementedError)):
-            get_provider("ANTHROPIC")
+        # All should load the same provider
+        provider1 = get_provider("ANTHROPIC")
+        provider2 = get_provider("Anthropic")
+        provider3 = get_provider("AnThRoPiC")
 
-        with pytest.raises((ValueError, ImportError, NotImplementedError)):
-            get_provider("Anthropic")
-
-        with pytest.raises((ValueError, ImportError, NotImplementedError)):
-            get_provider("AnThRoPiC")
+        assert provider1.__class__.__name__ == "AnthropicProvider"
+        assert provider2.__class__.__name__ == "AnthropicProvider"
+        assert provider3.__class__.__name__ == "AnthropicProvider"
 
     def test_empty_provider_name(self):
         """Test that empty provider name raises ValueError."""
