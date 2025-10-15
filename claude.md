@@ -299,6 +299,42 @@ python test_todoist_live.py
 
 ## Important Patterns & Conventions
 
+### Rich CLI Output (MANDATORY)
+
+**ALL user-facing output MUST use Rich library formatting:**
+
+**DO:**
+- ✅ Use `console.print()` instead of `print()`
+- ✅ Wrap responses in `Panel()` with appropriate styling
+- ✅ Use `console.status()` for loading/thinking states
+- ✅ Display tables with `Table()` for structured data
+- ✅ Syntax-highlight JSON with `Syntax()`
+- ✅ Color-code tool names, arguments, and results
+- ✅ Use Rich markup: `[bold]`, `[cyan]`, `[dim]`, etc.
+
+**DON'T:**
+- ❌ Use plain `print()` statements
+- ❌ Output raw JSON without syntax highlighting
+- ❌ Show unformatted lists or data structures
+- ❌ Use static "Loading..." text (use spinners instead)
+
+**Example Pattern:**
+```python
+# Good ✅
+console.print(Panel(
+    result,
+    title="[bold green]Success[/bold green]",
+    border_style="green",
+    box=box.ROUNDED
+))
+
+# Bad ❌
+print(f"Success: {result}")
+```
+
+**For New Features:**
+When adding new CLI output, always use Rich formatting from the start. Check `core/main.py`'s `display_tool_result()` function for examples.
+
 ### Provider Abstraction
 
 **DO:**

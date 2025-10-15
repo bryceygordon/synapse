@@ -295,7 +295,10 @@ def run(goal: str, max_steps: int = 15, agent_name: str = "coder"):
         max_steps: Maximum number of reasoning steps (default: 15)
         agent_name: Name of the agent to use (default: coder)
     """
-    print(f"--- Synapse AI Run ---\n🎯 Goal: {goal}\n")
+    console.print(Panel(
+        f"[bold cyan]Synapse AI Run[/bold cyan]\n\n🎯 [yellow]Goal:[/yellow] {goal}",
+        box=box.DOUBLE
+    ))
     setup_logging()
     load_dotenv()
 
@@ -306,46 +309,54 @@ def run(goal: str, max_steps: int = 15, agent_name: str = "coder"):
         client = provider.create_client()
         tools = provider.format_tool_schemas(agent)
 
-        print(f"✅ Agent: {agent.name} ({agent.provider}/{agent.model})")
-        print(f"📋 Max steps: {max_steps}\n")
+        console.print(f"✅ [bold green]Agent:[/bold green] {agent.name} ([cyan]{agent.provider}/{agent.model}[/cyan])")
+        console.print(f"📋 [bold]Max steps:[/bold] {max_steps}\n")
 
     except Exception as e:
-        print(f"❌ Error: {e}")
+        console.print(f"[bold red]❌ Error:[/bold red] {e}")
         raise typer.Exit()
 
     # Initialize conversation with the goal
     messages = [{"role": "user", "content": goal}]
 
     for step in range(max_steps):
-        print(f"--- Step {step + 1}/{max_steps} ---")
+        console.print(Panel(
+            f"[bold cyan]Step {step + 1}/{max_steps}[/bold cyan]",
+            box=box.ROUNDED,
+            border_style="cyan"
+        ))
 
         try:
-            print("🤔 Thinking...", flush=True)
-
-            # Send message to provider
-            response = provider.send_message(
-                client=client,
-                messages=messages,
-                system_prompt=agent.system_prompt,
-                model=agent.model,
-                tools=tools
-            )
+            with console.status("[bold green]Thinking...", spinner="dots"):
+                # Send message to provider
+                response = provider.send_message(
+                    client=client,
+                    messages=messages,
+                    system_prompt=agent.system_prompt,
+                    model=agent.model,
+                    tools=tools
+                )
 
             # If no tool calls, agent is done
             if not response.tool_calls:
                 if response.text:
-                    print(f"✅ Final response:\n{response.text}")
-                print("\n--- Run Finished: Goal achieved or no further tools needed. ---")
+                    console.print(Panel(
+                        response.text,
+                        title="[bold green]✅ Final Response[/bold green]",
+                        border_style="green",
+                        box=box.ROUNDED
+                    ))
+                console.print("\n[bold green]✅ Run Finished:[/bold green] [dim]Goal achieved or no further tools needed.[/dim]")
                 break
 
             # Execute tools
-            print(f"🛠️  Invoking {len(response.tool_calls)} tool(s)...")
+            console.print(f"🛠️  [cyan]Invoking {len(response.tool_calls)} tool(s)...[/cyan]\n")
 
             tool_results = []
             commit_requested = False
 
             for tool_call in response.tool_calls:
-                print(f"  → {tool_call.name}(**{tool_call.arguments})")
+                console.print(f"  [dim]→[/dim] [cyan]{tool_call.name}[/cyan]([yellow]{tool_call.arguments}[/yellow])")
 
                 if tool_call.name == "git_commit":
                     commit_requested = True
@@ -354,7 +365,8 @@ def run(goal: str, max_steps: int = 15, agent_name: str = "coder"):
                 tool_method = getattr(agent, tool_call.name)
                 result = tool_method(**tool_call.arguments)
 
-                print(f"    ✓ Output: {str(result)[:150]}...")
+                # Display result beautifully
+                display_tool_result(tool_call.name, result)
 
                 tool_results.append(
                     provider.format_tool_results(tool_call.id, str(result))
@@ -372,15 +384,15 @@ def run(goal: str, max_steps: int = 15, agent_name: str = "coder"):
 
             # If commit was requested, consider goal achieved
             if commit_requested:
-                print("\n--- Run Finished: Commit task completed. ---")
+                console.print("\n[bold green]✅ Run Finished:[/bold green] [dim]Commit task completed.[/dim]")
                 break
 
         except Exception as e:
-            print(f"\n❌ Error: {e}")
+            console.print(f"\n[bold red]❌ Error:[/bold red] {e}")
             break
 
     else:
-        print("\n--- Run Finished: Maximum steps reached. ---")
+        console.print("\n[bold yellow]⚠️  Run Finished:[/bold yellow] [dim]Maximum steps reached.[/dim]")
 
 
 if __name__ == "__main__":
