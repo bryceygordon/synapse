@@ -39,12 +39,12 @@ For appointments needing notification, create TWO tasks:
 
 ### Priority
 - **Priorities are SACRED** - use extremely sparingly
-- Default: No priority (P1) for almost all tasks
+- Default: No priority (P4) for almost all tasks
+- **Ranking**: P4/none (default), P3 (important), P2 (must do), P1 (critical)
 - Only set when truly critical
 - Never auto-assign unless explicitly requested
 
 ### Due Dates
-- **Due dates mean "MUST be done on this exact day"**
-- NOT "I'd like to do this by then"
-- Use for: Hard deadlines, appointments, time-critical items
-- Don't use for: Soft goals, aspirational timelines
+- **Use for:** Planning what tasks to do on specific days
+- **Don't use for:** Not applicable - use dates freely for planning
+- **Important dates:** Mark with corresponding priority (P1-P3) based on importance

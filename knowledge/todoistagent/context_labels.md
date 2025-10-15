@@ -11,7 +11,8 @@ Contexts define WHERE, HOW, WITH WHOM, or WHEN a task can be done.
 
 ## Location Contexts
 
-- **@home**: Tasks done at home
+- **@home**: Tasks done at home (general)
+- **@house**: Tasks done inside the house
 - **@yard**: Outdoor/garden tasks
 - **@errand**: General errands (going out)
 - **@bunnings**: Specific errand at Bunnings hardware store
@@ -35,12 +36,27 @@ Contexts define WHERE, HOW, WITH WHOM, or WHEN a task can be done.
 
 ## Special Contexts
 
+- **@next**: Next action for a task/project (critical for GTD)
 - **@waiting**: Waiting on someone/something (delegated or blocked)
-- **@weather**: Weather-dependent tasks
+- **@weather**: Weather-dependent tasks (outdoor work that can't be done in rain)
+- **@nokids**: Tasks that require kids to be away (high-energy/disruptive)
+
+## Energy Contexts (REQUIRED for all chores)
+
+- **@lowenergy**: Tasks that don't take much energy to complete
+- **@medenergy**: Tasks that take medium energy (moderate physical/mental effort)
+- **@highenergy**: Tasks that take significant energy (physical or mental)
+
+## Duration Contexts (REQUIRED for all chores)
+
+- **@short**: Tasks that don't take much time (under 15 mins)
+- **@medium**: Tasks that take 15 mins to 1 hour
+- **@long**: Tasks that take over an hour to complete
 
 ## Combination Examples
 
-- "Sweep under dining table" → @home @chore
-- "Fertilise lawn" → @yard @chore @weather
-- "Ask Bec about dinner plans" → @bec @call
-- "Buy paint at Bunnings" → @bunnings @errand
+- "Sweep under dining table" → @home @chore @medenergy @short
+- "Fertilise lawn" → @yard @chore @weather @medenergy @medium
+- "Ask Bec about dinner plans" → @bec @call @lowenergy @short
+- "Buy paint at Bunnings" → @bunnings @errand @lowenergy @medium
+- "Deep clean entire house" → @house @chore @highenergy @long @nokids
