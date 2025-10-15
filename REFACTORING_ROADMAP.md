@@ -417,11 +417,17 @@ These are NOT implemented now, but the architecture supports them:
 
 **Goal**: Verify complete workflow works and document the new architecture.
 
+**PREREQUISITE**: Before starting this phase, obtain an Anthropic API key with usage-based billing:
+1. Go to https://console.anthropic.com/
+2. Create account and add payment method
+3. Generate API key
+4. Set environment variable: `export ANTHROPIC_API_KEY=your-key-here`
+5. Estimated cost for testing: $5-20 total
+
 ### Tasks
 
 1. **Archive old tests**
-   - Move current OpenAI-specific tests to `tests/archived_openai/`
-   - Add README explaining they're for future OpenAI reintegration
+   - Move current OpenAI-specific tests to `tests/archived_openai/` (ALREADY DONE in Phase 1)
 
 2. **Create end-to-end test**
    - Create `tests/test_e2e_claude_coder.py`

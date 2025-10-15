@@ -1,133 +1,232 @@
-import os
+"""
+Main CLI application for Synapse AI Orchestration Engine.
+
+This module provides the command-line interface for interacting with
+AI agents through multiple providers (Claude, OpenAI, Gemini, etc.).
+"""
+
 import json
 import typer
-from openai import OpenAI, BadRequestError, APIStatusError
 from dotenv import load_dotenv
-from tenacity import retry, wait_exponential, stop_after_attempt
 
 from core.agent_loader import load_agent
-from core.schema_generator import generate_tool_schemas
+from core.providers import get_provider
 from core.logger import setup_logging
 
 app = typer.Typer(help="A modular, command-line-first AI orchestration engine.")
 
-# --- Refined Retry Logic ---
-def before_sleep_log(retry_state):
-    """Log before sleeping on a retry."""
-    print(f"Retrying API call due to server error... (Attempt {retry_state.attempt_number})")
-
-def is_server_error(exception):
-    """Return True if the exception is a server-side error (5xx)."""
-    return isinstance(exception, APIStatusError) and exception.status_code >= 500
-
-@retry(
-    wait=wait_exponential(multiplier=1, min=2, max=60),
-    stop=stop_after_attempt(3),
-    retry=is_server_error,
-    before_sleep=before_sleep_log
-)
-def make_api_call(client: OpenAI, payload: dict):
-    """A hardened wrapper for the client.responses.create call."""
-    return client.responses.create(**payload)
 
 @app.command("chat", help="Starts an interactive chat session with the agent.")
 @app.command("", hidden=True)
-def chat():
-    """Starts an interactive chat session with the configured Synapse agent."""
-    print("--- Synapse AI Chat (Responses API) ---")
-    setup_logging(); load_dotenv(); client = OpenAI()
+def chat(agent_name: str = "coder"):
+    """
+    Starts an interactive chat session with the configured Synapse agent.
+
+    Args:
+        agent_name: Name of the agent to load (default: coder)
+    """
+    print(f"--- Synapse AI Chat ---")
+    setup_logging()
+    load_dotenv()
 
     try:
-        agent = load_agent(agent_name="coder")
-        tools_for_api = generate_tool_schemas(agent)
-        tool_names = [t.get("name") for t in tools_for_api]
-        print(f"✅ Agent '{agent.name}' loaded. Tools: {tool_names}")
-    except Exception as e:
-        print(f"❌ Error loading agent: {e}"); raise typer.Exit()
+        # Load agent configuration
+        agent = load_agent(agent_name=agent_name)
+        print(f"✅ Agent '{agent.name}' loaded successfully")
+        print(f"   Provider: {agent.provider}")
+        print(f"   Model: {agent.model}")
 
-    print("Type your message below. Press Ctrl+C to exit.")
-    last_response_id, next_input = None, None
+        # Get the appropriate provider
+        provider = get_provider(agent.provider)
+        client = provider.create_client()
+
+        # Generate tool schemas for this provider
+        tools = provider.format_tool_schemas(agent)
+        tool_names = [t.get("name") for t in tools]
+        print(f"   Tools: {tool_names}\n")
+
+    except Exception as e:
+        print(f"❌ Error loading agent: {e}")
+        raise typer.Exit()
+
+    print("Type your message below. Press Ctrl+C to exit.\n")
+
+    # Conversation state
+    messages = []
 
     while True:
         try:
-            if next_input:
-                current_input = next_input
-                next_input = None
-            else:
-                user_text = input("\n> ")
-                current_input = [{"type": "message", "role": "user", "content": user_text}]
-
-            print(f"\nThinking...", flush=True)
-            request_payload = {"model": agent.model, "input": current_input, "instructions": agent.system_prompt, "tools": tools_for_api}
-            if last_response_id: request_payload["previous_response_id"] = last_response_id
-            response = make_api_call(client=client, payload=request_payload)
-            last_response_id = response.id
-
-            tool_calls = [item for item in response.output if item.type == "function_call"]
-            if tool_calls:
-                print(f"🛠️  Invoking {len(tool_calls)} tool(s) in parallel...")
-                original_tool_calls, tool_outputs = [], []
-                for tool_call in tool_calls:
-                    function_name, arguments = tool_call.name, json.loads(tool_call.arguments)
-                    print(f"  - {function_name}(**{arguments})")
-                    tool_output = getattr(agent, function_name)(**arguments)
-                    original_tool_calls.append(tool_call.model_dump())
-                    tool_outputs.append({"type": "function_call_output", "call_id": tool_call.id, "output": str(tool_output)})
-                next_input = original_tool_calls + tool_outputs
+            # Get user input
+            user_text = input("> ")
+            if not user_text.strip():
                 continue
 
-            if response.output_text: print(f"\nAssistant: {response.output_text}")
+            # Add user message to history
+            messages.append({"role": "user", "content": user_text})
+
+            print("\n🤔 Thinking...", flush=True)
+
+            # Send message to provider
+            response = provider.send_message(
+                client=client,
+                messages=messages,
+                system_prompt=agent.system_prompt,
+                model=agent.model,
+                tools=tools
+            )
+
+            # Handle tool calls
+            if response.tool_calls:
+                print(f"🛠️  Invoking {len(response.tool_calls)} tool(s)...\n")
+
+                # Add assistant's tool use message to history
+                messages.append({
+                    "role": "assistant",
+                    "content": response.tool_calls  # Provider-specific format
+                })
+
+                # Execute each tool
+                tool_results = []
+                for tool_call in response.tool_calls:
+                    print(f"  → {tool_call.name}({tool_call.arguments})")
+
+                    # Invoke the tool method on the agent
+                    tool_method = getattr(agent, tool_call.name)
+                    result = tool_method(**tool_call.arguments)
+
+                    print(f"    ✓ Result: {str(result)[:100]}...")
+
+                    # Format result for provider
+                    tool_results.append(
+                        provider.format_tool_results(tool_call.id, str(result))
+                    )
+
+                # Add tool results to message history
+                messages.append({
+                    "role": "user",
+                    "content": tool_results
+                })
+
+                # Get next response after tool execution
+                print("\n🤔 Processing results...", flush=True)
+                response = provider.send_message(
+                    client=client,
+                    messages=messages,
+                    system_prompt=agent.system_prompt,
+                    model=agent.model,
+                    tools=tools
+                )
+
+            # Display text response if present
+            if response.text:
+                print(f"\nAssistant: {response.text}\n")
+                messages.append({"role": "assistant", "content": response.text})
+
         except KeyboardInterrupt:
-            print("\nExiting chat. Goodbye!"); break
+            print("\n\nExiting chat. Goodbye!")
+            break
         except Exception as e:
-            print(f"\nAn error occurred: {e}"); last_response_id, next_input = None, None
+            print(f"\n❌ An error occurred: {e}")
+            print("Continuing conversation...\n")
+
 
 @app.command("run", help="Executes a high-level goal autonomously.")
-def run(goal: str, max_steps: int = 15):
-    """Takes a goal and lets the agent work autonomously to achieve it."""
-    print(f"--- Synapse AI Run ---\n🎯 Goal: {goal}")
-    setup_logging(); load_dotenv(); client = OpenAI()
-    agent = load_agent(agent_name="coder")
-    tools_for_api = generate_tool_schemas(agent)
-    
-    last_response_id = None
-    current_input = [{"type": "message", "role": "user", "content": goal}]
+def run(goal: str, max_steps: int = 15, agent_name: str = "coder"):
+    """
+    Takes a goal and lets the agent work autonomously to achieve it.
 
-    for i in range(max_steps):
-        print(f"\n--- Step {i+1}/{max_steps} ---")
+    Args:
+        goal: The goal for the agent to achieve
+        max_steps: Maximum number of reasoning steps (default: 15)
+        agent_name: Name of the agent to use (default: coder)
+    """
+    print(f"--- Synapse AI Run ---\n🎯 Goal: {goal}\n")
+    setup_logging()
+    load_dotenv()
+
+    try:
+        # Load agent and provider
+        agent = load_agent(agent_name=agent_name)
+        provider = get_provider(agent.provider)
+        client = provider.create_client()
+        tools = provider.format_tool_schemas(agent)
+
+        print(f"✅ Agent: {agent.name} ({agent.provider}/{agent.model})")
+        print(f"📋 Max steps: {max_steps}\n")
+
+    except Exception as e:
+        print(f"❌ Error: {e}")
+        raise typer.Exit()
+
+    # Initialize conversation with the goal
+    messages = [{"role": "user", "content": goal}]
+
+    for step in range(max_steps):
+        print(f"--- Step {step + 1}/{max_steps} ---")
+
         try:
             print("🤔 Thinking...", flush=True)
-            request_payload = {"model": agent.model, "input": current_input, "instructions": agent.system_prompt, "tools": tools_for_api}
-            if last_response_id: request_payload["previous_response_id"] = last_response_id
-            response = make_api_call(client=client, payload=request_payload)
-            last_response_id = response.id
 
-            tool_calls = [item for item in response.output if item.type == "function_call"]
+            # Send message to provider
+            response = provider.send_message(
+                client=client,
+                messages=messages,
+                system_prompt=agent.system_prompt,
+                model=agent.model,
+                tools=tools
+            )
 
-            if not tool_calls:
-                print(f"✅ Assistant provided final response:\n{response.output_text}")
-                print("\n--- Run Finished: Goal achieved or no further tools needed. ---"); break
+            # If no tool calls, agent is done
+            if not response.tool_calls:
+                if response.text:
+                    print(f"✅ Final response:\n{response.text}")
+                print("\n--- Run Finished: Goal achieved or no further tools needed. ---")
+                break
 
-            print(f"🛠️  Invoking {len(tool_calls)} tool(s) in parallel...")
-            original_tool_calls, tool_outputs = [], []
+            # Execute tools
+            print(f"🛠️  Invoking {len(response.tool_calls)} tool(s)...")
+
+            tool_results = []
             commit_requested = False
-            for tool_call in tool_calls:
-                function_name, arguments = tool_call.name, json.loads(tool_call.arguments)
-                if function_name == "git_commit": commit_requested = True
-                print(f"  - {function_name}(**{arguments})")
-                tool_output = getattr(agent, function_name)(**arguments)
-                print(f"    - Output: {str(tool_output)[:200]}...") # Truncate long outputs
-                original_tool_calls.append(tool_call.model_dump())
-                tool_outputs.append({"type": "function_call_output", "call_id": tool_call.id, "output": str(tool_output)})
-            
-            current_input = original_tool_calls + tool_outputs
-            if commit_requested: print("\n--- Run Finished: Commit task completed. ---"); break
-        except BadRequestError as e:
-            print(f"\n❌ Invalid Request Error: The request was malformed. This can be due to excessive context length. Aborting. Details: {e}"); break
+
+            for tool_call in response.tool_calls:
+                print(f"  → {tool_call.name}(**{tool_call.arguments})")
+
+                if tool_call.name == "git_commit":
+                    commit_requested = True
+
+                # Execute tool
+                tool_method = getattr(agent, tool_call.name)
+                result = tool_method(**tool_call.arguments)
+
+                print(f"    ✓ Output: {str(result)[:150]}...")
+
+                tool_results.append(
+                    provider.format_tool_results(tool_call.id, str(result))
+                )
+
+            # Update conversation with tool results
+            messages.append({
+                "role": "assistant",
+                "content": response.tool_calls
+            })
+            messages.append({
+                "role": "user",
+                "content": tool_results
+            })
+
+            # If commit was requested, consider goal achieved
+            if commit_requested:
+                print("\n--- Run Finished: Commit task completed. ---")
+                break
+
         except Exception as e:
-            print(f"\nAn unexpected error occurred: {e}"); break
+            print(f"\n❌ Error: {e}")
+            break
+
     else:
         print("\n--- Run Finished: Maximum steps reached. ---")
+
 
 if __name__ == "__main__":
     app()
