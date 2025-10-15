@@ -2,7 +2,7 @@
 
 **Purpose:** This file stores learned preferences and patterns discovered through conversations.
 **Maintained by:** TodoistAgent (updated with user approval)
-**Last updated:** 2025-10-15 2025-10-15 2025-10-15 2025-10-15 2025-10-15 2025-10-15 2025-10-15 2025-10-15 2025-10-15 2025-10-15 2025-10-15 2025-10-15
+**Last updated:** 2025-10-15 2025-10-15 2025-10-15 2025-10-15 2025-10-15 2025-10-15 2025-10-15 2025-10-15 2025-10-15 2025-10-15 2025-10-15 2025-10-15 2025-10-15
 
 ---
 
@@ -34,6 +34,8 @@ The user has a specific weekly review workflow that must be followed:
 ---
 
 ## Task Processing Rules
+
+When processing tasks for the user, present a maximum of 3 tasks at a time.
 
 ### Bulk Task Updates:
 - **ALWAYS process multiple task updates in one batch** - never do them one at a time
