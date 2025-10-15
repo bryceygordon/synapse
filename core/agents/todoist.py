@@ -222,8 +222,12 @@ class TodoistAgent(BaseAgent):
             if labels:
                 # Handle case where labels is accidentally passed as a string instead of list
                 if isinstance(labels, str):
-                    labels = [labels]
-                clean_labels = [label.lstrip('@') for label in labels]
+                    # Check if it's a comma-separated string
+                    if ',' in labels:
+                        labels = [label.strip().lstrip('@') for label in labels.split(',')]
+                    else:
+                        labels = [labels]
+                clean_labels = [label.lstrip('@').strip() for label in labels]
                 task_data["labels"] = clean_labels
 
             # Add due date if provided
@@ -410,8 +414,12 @@ class TodoistAgent(BaseAgent):
             if labels is not None:
                 # Handle case where labels is accidentally passed as a string instead of list
                 if isinstance(labels, str):
-                    labels = [labels]
-                clean_labels = [label.lstrip('@') for label in labels]
+                    # Check if it's a comma-separated string
+                    if ',' in labels:
+                        labels = [label.strip().lstrip('@') for label in labels.split(',')]
+                    else:
+                        labels = [labels]
+                clean_labels = [label.lstrip('@').strip() for label in labels]
                 update_data["labels"] = clean_labels
 
             if priority is not None:

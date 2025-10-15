@@ -8,7 +8,7 @@ import os
 import json
 import inspect
 import re
-from typing import get_type_hints, Any
+from typing import get_type_hints, get_origin, get_args, Any
 
 from anthropic import Anthropic
 from core.providers.base_provider import BaseProvider, ToolCall, ProviderResponse
@@ -179,10 +179,29 @@ class AnthropicProvider(BaseProvider):
                 if not param_type:
                     continue
 
-                properties[param.name] = {
-                    "type": TYPE_MAPPING.get(param_type, "string"),
+                # Handle generic types like list[str]
+                origin = get_origin(param_type)
+                args = get_args(param_type)
+
+                # Build the property schema
+                prop_schema = {
                     "description": param_descriptions.get(param.name, "No description available.")
                 }
+
+                if origin is list:
+                    # It's a list type
+                    prop_schema["type"] = "array"
+                    if args:
+                        # We have type arguments like list[str]
+                        item_type = args[0]
+                        prop_schema["items"] = {
+                            "type": TYPE_MAPPING.get(item_type, "string")
+                        }
+                else:
+                    # Simple type
+                    prop_schema["type"] = TYPE_MAPPING.get(param_type, "string")
+
+                properties[param.name] = prop_schema
 
                 if param.default is inspect.Parameter.empty:
                     required.append(param.name)
