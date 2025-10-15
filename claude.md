@@ -139,12 +139,13 @@ The agent follows the user's specific GTD methodology:
   - Stores rules in `knowledge/todoist_rules.md`
   - Always confirms with "✅ MEMORY UPDATED" after saving
   - Reads rules on startup via `query_rules()`, updates via `update_rules()`
+  - **Automatic Git Backup**: Knowledge changes are automatically committed and pushed to git
 
 **Configuration:** `agents/todoist.yaml`
 
 **Environment:**
 - `TODOIST_API_TOKEN` - API key from Todoist
-- `TIMEZONE` - User timezone (default: UTC)
+- `TIMEZONE` - User timezone (e.g., `Australia/Perth`) - **REQUIRED** for correct time awareness
 
 ### CoderAgent
 

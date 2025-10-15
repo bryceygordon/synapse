@@ -773,10 +773,11 @@ class TodoistAgent(BaseAgent):
         operation: str = "append"
     ) -> str:
         """
-        Updates the learned rules knowledge file.
+        Updates the learned rules knowledge file and commits to git.
 
         Use this tool to save new preferences, patterns, and rules as you learn them
         from conversations with the user. This ensures persistent memory across sessions.
+        Changes are automatically backed up to git.
 
         Args:
             section: The section to update (e.g., "Processing Rules", "Weekly Review", "Task Patterns")
@@ -786,6 +787,8 @@ class TodoistAgent(BaseAgent):
         IMPORTANT: Always call this with a confirmation message after updating.
         """
         try:
+            import subprocess
+
             # Ensure knowledge directory exists
             self.knowledge_dir.mkdir(parents=True, exist_ok=True)
 
@@ -841,13 +844,55 @@ class TodoistAgent(BaseAgent):
             # Write updated content
             self.rules_file.write_text(content)
 
+            # Git backup: commit and push the change
+            git_success = False
+            try:
+                # Stage the file
+                subprocess.run(
+                    ["git", "add", str(self.rules_file)],
+                    check=True,
+                    capture_output=True,
+                    text=True,
+                    cwd=str(self.knowledge_dir.parent)
+                )
+
+                # Commit with descriptive message
+                commit_msg = f"chore(knowledge): Update {section} in todoist_rules.md\n\nAutomatically committed by TodoistAgent on {date_str}"
+                subprocess.run(
+                    ["git", "commit", "-m", commit_msg],
+                    check=True,
+                    capture_output=True,
+                    text=True,
+                    cwd=str(self.knowledge_dir.parent)
+                )
+
+                # Push to remote
+                subprocess.run(
+                    ["git", "push"],
+                    check=True,
+                    capture_output=True,
+                    text=True,
+                    cwd=str(self.knowledge_dir.parent)
+                )
+
+                git_success = True
+            except subprocess.CalledProcessError as git_error:
+                # Git backup failed, but file was still saved locally
+                # Log the error but don't fail the whole operation
+                pass
+
+            confirmation_msg = f"✅ MEMORY UPDATED: Added to '{section}' section"
+            if git_success:
+                confirmation_msg += " and backed up to git"
+
             return self._success(
-                f"✅ MEMORY UPDATED: Added to '{section}' section",
+                confirmation_msg,
                 data={
                     "section": section,
                     "operation": operation,
                     "file": str(self.rules_file),
-                    "confirmation": f"Rules successfully saved to {section}. Memory persisted."
+                    "git_backup": git_success,
+                    "confirmation": f"Rules successfully saved to {section}. Memory persisted{' and backed up to git' if git_success else ''}."
                 }
             )
 
