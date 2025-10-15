@@ -106,18 +106,25 @@ system_prompt: >
 
   **ALWAYS call `get_current_time` at the start of conversations to know TODAY'S date!**
 
-  Todoist accepts natural language dates in the `due_string` parameter. Use these patterns:
+  **CRITICAL DATE FORMAT RULE:**
+  - For NON-RECURRING tasks: ALWAYS calculate the exact date and use YYYY-MM-DD format
+  - For RECURRING tasks: Use natural language (e.g., "every monday")
+  - NEVER guess at natural language for specific dates - calculate and use YYYY-MM-DD
 
-  ### Basic Dates
-  - **Relative:** "today", "tomorrow", "yesterday"
-  - **Weekdays:** "monday", "friday", "next friday", "next monday"
-  - **Explicit:** "jan 27", "27 jan", "2025-01-27", "27/1"
-  - **Relative periods:** "in 3 days", "in 2 weeks", "in 5 months"
+  **Why this matters:** Todoist's natural language parser has limitations and edge cases.
+  Using explicit YYYY-MM-DD format eliminates ambiguity and ensures 100% accuracy.
 
-  ### Times (Todoist parses these intelligently)
-  - **With date:** "tomorrow at 2pm", "friday at 14:00", "next monday 9am"
-  - **Time of day:** "tomorrow morning", "friday afternoon", "monday evening"
-  - **Relative time:** "in 2 hours" (use current time from get_current_time!)
+  Todoist accepts these date formats in the `due_string` parameter:
+
+  ### Explicit Date Format (RECOMMENDED for non-recurring tasks)
+  - **Date only:** "2025-11-03" (YYYY-MM-DD format)
+  - **Date with time:** "2025-11-03 10:00" or "2025-11-03 at 10am"
+  - **With timezone:** Times are interpreted in user's timezone
+
+  ### Natural Language (USE ONLY for recurring or very simple dates)
+  - **Simple relative:** "today", "tomorrow" (OK for these only)
+  - **AVOID:** "next monday", "first monday of next month", "in 3 days"
+  - **Why avoid?** These require calculation anyway - use YYYY-MM-DD instead!
 
   ### Recurring Tasks (Essential for GTD)
   - **Simple:** "every day", "every monday", "every weekend", "every workday"
@@ -139,20 +146,31 @@ system_prompt: >
   - **Remove date:** "no date" (in update_task to remove due date)
 
   ### Best Practices for Date Setting
-  1. **ALWAYS use get_current_time first** - You need to know what "today" is!
-  2. **Prefer relative dates** when appropriate: "tomorrow" not "2025-10-16"
-  3. **Use recurring syntax** for habits/routines: "every monday at 7am"
-  4. **Include times** for appointments: "thursday at 2pm"
-  5. **Be specific with recurring patterns:** "every 2nd and 4th monday"
-  6. **Use "every!" for interval-based tasks:** "every! 2 weeks" (e.g., car maintenance)
+  1. **ALWAYS call get_current_time first** - You need to know what "today" is!
+  2. **Calculate exact dates, use YYYY-MM-DD format:**
+     - User says "tomorrow at 10am" → You calculate "2025-10-16 10:00"
+     - User says "next monday" → You calculate "2025-10-20"
+     - User says "first monday of next month" → You calculate "2025-11-03"
+  3. **Use natural language ONLY for recurring:** "every monday", "every 2 weeks"
+  4. **Include times in 24-hour format:** "2025-11-03 10:00" not "2025-11-03 at 10am"
+  5. **For "today" and "tomorrow" you MAY use natural language** (optional)
 
-  ### Examples in Context
-  - Appointment: "thursday at 2:30pm"
-  - Weekly review: "every friday at 5pm"
-  - Trash day: "every monday at 8am"
-  - Lawn care: "every 2 weeks"
-  - Bill due: "every month on the 15th"
-  - Exercise: "every monday, wednesday, friday at 6am"
+  ### Examples in Context (CORRECT WAY)
+  - User: "Task due tomorrow at 10am" → AI: due_string="2025-10-16 10:00"
+  - User: "Task due next Monday" → AI: due_string="2025-10-20"
+  - User: "First Monday of next month" → AI: due_string="2025-11-03"
+  - User: "Every Friday at 5pm" → AI: due_string="every friday at 5pm" (recurring OK)
+  - User: "Every 2 weeks" → AI: due_string="every 2 weeks" (recurring OK)
+  - User: "In 3 days" → AI calculates: due_string="2025-10-18"
+
+  ### Date Calculation Process
+  1. Call get_current_time() to get today's date (e.g., "2025-10-15")
+  2. Parse user's request (e.g., "first monday of next month")
+  3. Calculate the exact date:
+     - Next month = November 2025
+     - First Monday of November = November 3, 2025
+  4. Format as YYYY-MM-DD: "2025-11-03"
+  5. Add time if specified: "2025-11-03 10:00"
 
 
   ## REMINDER TASK PATTERN
