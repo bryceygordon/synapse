@@ -213,11 +213,18 @@ def chat(agent_name: str = "coder"):
             tool_results = []
             for tool_call in response.tool_calls:
                 console.print(f"  [dim]→[/dim] [cyan]{tool_call.name}()[/cyan]")
-                tool_method = getattr(agent, tool_call.name)
-                result = tool_method(**tool_call.arguments)
-                tool_results.append(
-                    provider.format_tool_results(tool_call.id, str(result))
-                )
+                try:
+                    tool_method = getattr(agent, tool_call.name)
+                    result = tool_method(**tool_call.arguments)
+                    tool_results.append(
+                        provider.format_tool_results(tool_call.id, str(result))
+                    )
+                except TypeError as e:
+                    error_msg = f"{{\"status\": \"error\", \"error\": \"Invalid function call: {str(e)}\"}}"
+                    console.print(f"[bold red]❌ Startup error:[/bold red] {e}")
+                    tool_results.append(
+                        provider.format_tool_results(tool_call.id, error_msg)
+                    )
 
             # Add tool results to message history
             # Provider-specific handling for different message formats
@@ -278,17 +285,25 @@ def chat(agent_name: str = "coder"):
                 for tool_call in response.tool_calls:
                     console.print(f"  [dim]→[/dim] [cyan]{tool_call.name}[/cyan]([yellow]{tool_call.arguments}[/yellow])")
 
-                    # Invoke the tool method on the agent
-                    tool_method = getattr(agent, tool_call.name)
-                    result = tool_method(**tool_call.arguments)
+                    try:
+                        # Invoke the tool method on the agent
+                        tool_method = getattr(agent, tool_call.name)
+                        result = tool_method(**tool_call.arguments)
 
-                    # Display the result beautifully
-                    display_tool_result(tool_call.name, result)
+                        # Display the result beautifully
+                        display_tool_result(tool_call.name, result)
 
-                    # Format result for provider
-                    tool_results.append(
-                        provider.format_tool_results(tool_call.id, str(result))
-                    )
+                        # Format result for provider
+                        tool_results.append(
+                            provider.format_tool_results(tool_call.id, str(result))
+                        )
+                    except TypeError as e:
+                        # Catch incorrect function call arguments
+                        error_msg = f"{{\"status\": \"error\", \"error\": \"Invalid function call: {str(e)}\", \"hint\": \"Check that parameters are passed directly, not wrapped in 'parameters' dict\"}}"
+                        console.print(f"[bold red]❌ Function call error:[/bold red] {e}")
+                        tool_results.append(
+                            provider.format_tool_results(tool_call.id, error_msg)
+                        )
 
                 # Add tool results to message history
                 # For Anthropic: single user message with list of tool results
@@ -399,16 +414,23 @@ def run(goal: str, max_steps: int = 15, agent_name: str = "coder"):
                 if tool_call.name == "git_commit":
                     commit_requested = True
 
-                # Execute tool
-                tool_method = getattr(agent, tool_call.name)
-                result = tool_method(**tool_call.arguments)
+                try:
+                    # Execute tool
+                    tool_method = getattr(agent, tool_call.name)
+                    result = tool_method(**tool_call.arguments)
 
-                # Display result beautifully
-                display_tool_result(tool_call.name, result)
+                    # Display result beautifully
+                    display_tool_result(tool_call.name, result)
 
-                tool_results.append(
-                    provider.format_tool_results(tool_call.id, str(result))
-                )
+                    tool_results.append(
+                        provider.format_tool_results(tool_call.id, str(result))
+                    )
+                except TypeError as e:
+                    error_msg = f"{{\"status\": \"error\", \"error\": \"Invalid function call: {str(e)}\"}}"
+                    console.print(f"[bold red]❌ Function call error:[/bold red] {e}")
+                    tool_results.append(
+                        provider.format_tool_results(tool_call.id, error_msg)
+                    )
 
             # Update conversation with tool results
             messages.append(provider.get_assistant_message(response))

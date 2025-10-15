@@ -214,7 +214,9 @@ class OpenAIProvider(BaseProvider):
                     required.append(param.name)
 
             # OpenAI format: wrapped in "type": "function" with "function" object
-            # Use strict: true to enforce exact schema compliance (prevents parameter wrapping errors)
+            # Note: We can't use strict mode because it requires all properties to be required
+            # (no optional parameters), which conflicts with our function signatures.
+            # The prompt instructions serve as our primary guard against incorrect calls.
             schema = {
                 "type": "function",
                 "function": {
@@ -224,9 +226,7 @@ class OpenAIProvider(BaseProvider):
                         "type": "object",
                         "properties": properties,
                         "required": required,
-                        "additionalProperties": False,  # Required for strict mode
                     },
-                    "strict": True,  # Enforce strict schema adherence
                 }
             }
             schemas.append(schema)
