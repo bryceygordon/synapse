@@ -322,34 +322,25 @@ class TodoistAgent(BaseAgent):
                 elif sort_by == "priority_desc":
                     tasks = sorted(tasks, key=lambda t: t.priority, reverse=True)
 
-            # Format task list
-            task_list = []
-            for task in tasks:
-                task_info = {
-                    "id": task.id,
-                    "content": task.content,
-                    "project_id": task.project_id,
-                    "labels": task.labels,
-                    "priority": task.priority,
-                    "due": task.due.string if task.due else None,
-                    "created_at": str(task.created_at) if task.created_at else None,
-                    "url": task.url
-                }
-                task_list.append(task_info)
-
-            # Create readable summary
+            # Create readable summary with only essential info
             summary_lines = [f"Found {len(tasks)} task(s):\n"]
+            task_summaries = []
             for i, task in enumerate(tasks, 1):
                 labels_str = f" [{', '.join('@' + l for l in task.labels)}]" if task.labels else ""
                 due_str = f" (due: {task.due.string})" if task.due else ""
                 priority_str = f" [P{task.priority}]" if task.priority > 1 else ""
-                summary_lines.append(
-                    f"{i}. {task.content}{labels_str}{due_str}{priority_str}"
-                )
+                task_line = f"{i}. {task.content}{labels_str}{due_str}{priority_str}"
+                summary_lines.append(task_line)
+
+                # Only include minimal info for data payload (just ID and content)
+                task_summaries.append({
+                    "id": task.id,
+                    "content": task.content
+                })
 
             return self._success(
                 "\n".join(summary_lines),
-                data={"tasks": task_list, "count": len(tasks)}
+                data={"task_ids": [t.id for t in tasks], "count": len(tasks)}
             )
 
         except Exception as e:
