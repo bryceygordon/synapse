@@ -2,7 +2,7 @@
 
 **Purpose:** This file stores learned preferences and patterns discovered through conversations.
 **Maintained by:** TodoistAgent (updated with user approval)
-**Last updated:** 2025-10-15 2025-10-15 2025-10-15 2025-10-15
+**Last updated:** 2025-10-15 2025-10-15 2025-10-15 2025-10-15 2025-10-15
 
 ---
 
@@ -141,6 +141,29 @@ The user has a specific weekly review workflow that must be followed:
 *Agent learns common task types and how to handle them*
 
 ---
+
+### Poison/Spray Tasks:
+- Tasks involving poisoning (pavers, spiders, weeds) are @weather dependent
+- Always add @weather context to poison/spray tasks
+
+### Task Completion Shorthand:
+- User says "d" for done = complete the task immediately
+- Quick way to mark tasks complete during reviews
+
+### High Energy + Kids Consideration:
+- @highenergy tasks often need @nokids tag
+- @nokids = task requires kids to not be home
+- Agent should suggest @nokids for disruptive high-energy tasks
+
+### Simple Tasks as Next Actions:
+- Some tasks are simple enough that the task itself IS the next action
+- For these: add @next directly to the main task (no subtask needed)
+- Examples: "sweep back patio", "call someone", "buy specific item"
+- Use judgment - if task is single, clear action, it can be its own @next
+
+### Weekly Review Planning Session:
+- At END of weekly review, schedule @plan tasks into specific days
+- This is separate step after all project reviews are complete
 
 ## Location-Specific Patterns
 
