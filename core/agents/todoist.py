@@ -9,8 +9,10 @@ import os
 import json
 from pathlib import Path
 from typing import Optional
+from datetime import datetime, timezone
+from zoneinfo import ZoneInfo
 from todoist_api_python.api import TodoistAPI
-from todoist_api_python.models import Task, Project
+from todoist_api_python.models import Task, Project, Section, Label, Comment
 from core.agents.base import BaseAgent
 
 
@@ -36,8 +38,13 @@ class TodoistAgent(BaseAgent):
 
         self.api = TodoistAPI(api_token)
 
-        # Cache for projects (avoid repeated API calls)
+        # Cache for projects, sections, and labels (avoid repeated API calls)
         self._projects_cache: Optional[list[Project]] = None
+        self._sections_cache: Optional[list[Section]] = None
+        self._labels_cache: Optional[list[Label]] = None
+
+        # User timezone (default to system timezone)
+        self.timezone = ZoneInfo(os.getenv("TIMEZONE", "UTC"))
 
         # Knowledge file paths
         self.knowledge_dir = Path("knowledge")
@@ -61,6 +68,31 @@ class TodoistAgent(BaseAgent):
             if project.name.lower() == project_name.lower():
                 return project
         return None
+
+    def _get_sections(self, project_id: str = None) -> list[Section]:
+        """Get all sections, optionally filtered by project, using cache if available."""
+        if self._sections_cache is None:
+            sections_paginator = self.api.get_sections()
+            self._sections_cache = next(iter(sections_paginator))
+
+        if project_id:
+            return [s for s in self._sections_cache if s.project_id == project_id]
+        return self._sections_cache
+
+    def _find_section_by_name(self, section_name: str, project_id: str = None) -> Optional[Section]:
+        """Find a section by name (case-insensitive), optionally within a specific project."""
+        sections = self._get_sections(project_id=project_id)
+        for section in sections:
+            if section.name.lower() == section_name.lower():
+                return section
+        return None
+
+    def _get_labels(self) -> list[Label]:
+        """Get all labels, using cache if available."""
+        if self._labels_cache is None:
+            labels_paginator = self.api.get_labels()
+            self._labels_cache = next(iter(labels_paginator))
+        return self._labels_cache
 
     def _get_tasks_list(self, **kwargs) -> list[Task]:
         """Get tasks as a list (handles ResultsPaginator)."""
@@ -87,6 +119,43 @@ class TodoistAgent(BaseAgent):
     # TOOL METHODS (Exposed to AI)
     # =========================================================================
 
+    def get_current_time(self) -> str:
+        """
+        Get the current date and time in the user's timezone.
+
+        Returns current datetime information including:
+        - Full datetime with timezone
+        - Current date in YYYY-MM-DD format (for Todoist due_date)
+        - Day of week
+        - Time in 24-hour and 12-hour formats
+
+        This is essential for determining due dates and understanding temporal context.
+        """
+        try:
+            now = datetime.now(self.timezone)
+
+            info = {
+                "datetime": now.strftime("%A, %B %d, %Y at %I:%M %p %Z"),
+                "date": now.strftime("%Y-%m-%d"),
+                "day_of_week": now.strftime("%A"),
+                "time_24h": now.strftime("%H:%M"),
+                "time_12h": now.strftime("%I:%M %p"),
+                "timezone": str(self.timezone),
+                "iso8601": now.isoformat()
+            }
+
+            summary = (
+                f"Current time: {info['datetime']}\n"
+                f"Date (for Todoist): {info['date']}\n"
+                f"Day: {info['day_of_week']}\n"
+                f"Time: {info['time_12h']} ({info['time_24h']})"
+            )
+
+            return self._success(summary, data=info)
+
+        except Exception as e:
+            return self._error("TimeError", f"Failed to get current time: {str(e)}")
+
     def create_task(
         self,
         content: str,
@@ -94,7 +163,11 @@ class TodoistAgent(BaseAgent):
         labels: list[str] = None,
         priority: int = 1,
         due_string: str = None,
-        description: str = None
+        description: str = None,
+        section_name: str = None,
+        parent_id: str = None,
+        duration: int = None,
+        duration_unit: str = "minute"
     ) -> str:
         """
         Creates a new task in Todoist.
@@ -104,8 +177,12 @@ class TodoistAgent(BaseAgent):
             project_name: Project name (e.g., "Processed", "Inbox", "Groceries")
             labels: List of context labels (e.g., ["home", "chore"])
             priority: Priority level 1-4 (1=lowest/none, 4=highest). Default 1.
-            due_string: Natural language due date (e.g., "tomorrow", "next Monday")
+            due_string: Natural language due date (e.g., "tomorrow", "next Monday", "every friday")
             description: Additional notes/context for the task
+            section_name: Section name within the project (optional)
+            parent_id: Parent task ID to create a subtask (optional)
+            duration: Task duration amount (optional, e.g., 30)
+            duration_unit: Duration unit: "minute" or "day" (default: "minute")
         """
         try:
             # Find the project
@@ -124,6 +201,20 @@ class TodoistAgent(BaseAgent):
                 "priority": priority
             }
 
+            # Add section if provided
+            if section_name:
+                section = self._find_section_by_name(section_name, project_id=project.id)
+                if not section:
+                    return self._error(
+                        "SectionNotFound",
+                        f"Section '{section_name}' not found in project '{project_name}'"
+                    )
+                task_data["section_id"] = section.id
+
+            # Add parent_id for subtasks
+            if parent_id:
+                task_data["parent_id"] = parent_id
+
             # Add labels if provided (remove @ prefix if present)
             if labels:
                 clean_labels = [label.lstrip('@') for label in labels]
@@ -136,6 +227,11 @@ class TodoistAgent(BaseAgent):
             # Add description if provided
             if description:
                 task_data["description"] = description
+
+            # Add duration if provided
+            if duration is not None:
+                task_data["duration"] = duration
+                task_data["duration_unit"] = duration_unit
 
             # Create the task
             task = self.api.add_task(**task_data)
@@ -259,7 +355,9 @@ class TodoistAgent(BaseAgent):
         labels: list[str] = None,
         priority: int = None,
         due_string: str = None,
-        description: str = None
+        description: str = None,
+        duration: int = None,
+        duration_unit: str = "minute"
     ) -> str:
         """
         Updates an existing task.
@@ -269,8 +367,10 @@ class TodoistAgent(BaseAgent):
             content: New task description (optional)
             labels: New labels list (optional, replaces existing)
             priority: New priority 1-4 (optional)
-            due_string: New due date (optional)
+            due_string: New due date (optional, use "no date" to remove)
             description: New description (optional)
+            duration: New task duration amount (optional)
+            duration_unit: Duration unit: "minute" or "day" (default: "minute")
         """
         try:
             # Build update data
@@ -291,6 +391,10 @@ class TodoistAgent(BaseAgent):
 
             if description is not None:
                 update_data["description"] = description
+
+            if duration is not None:
+                update_data["duration"] = duration
+                update_data["duration_unit"] = duration_unit
 
             if not update_data:
                 return self._error("InvalidInput", "No updates provided")
@@ -362,6 +466,230 @@ class TodoistAgent(BaseAgent):
 
         except Exception as e:
             return self._error("TodoistAPIError", f"Failed to add comment: {str(e)}")
+
+    def delete_task(self, task_id: str) -> str:
+        """
+        Permanently deletes a task.
+
+        Args:
+            task_id: The ID of the task to delete
+
+        WARNING: This cannot be undone. Consider completing the task instead.
+        """
+        try:
+            # Get task details first
+            task = self.api.get_task(task_id)
+            content = task.content
+
+            # Delete it
+            self.api.delete_task(task_id)
+
+            return self._success(
+                f"Deleted task: {content}",
+                data={"task_id": task_id, "content": content}
+            )
+
+        except Exception as e:
+            return self._error("TodoistAPIError", f"Failed to delete task: {str(e)}")
+
+    def reopen_task(self, task_id: str) -> str:
+        """
+        Reopens a completed task.
+
+        Args:
+            task_id: The ID of the task to reopen
+        """
+        try:
+            # Get task details first
+            task = self.api.get_task(task_id)
+
+            # Reopen it
+            self.api.uncomplete_task(task_id)
+
+            return self._success(
+                f"Reopened task: {task.content}",
+                data={"task_id": task_id, "content": task.content}
+            )
+
+        except Exception as e:
+            return self._error("TodoistAPIError", f"Failed to reopen task: {str(e)}")
+
+    def move_task(self, task_id: str, project_name: str) -> str:
+        """
+        Moves a task to a different project.
+
+        Args:
+            task_id: The ID of the task to move
+            project_name: The name of the destination project
+        """
+        try:
+            # Find the destination project
+            project = self._find_project_by_name(project_name)
+            if not project:
+                return self._error(
+                    "ProjectNotFound",
+                    f"Project '{project_name}' not found. Available projects: "
+                    f"{', '.join(p.name for p in self._get_projects())}"
+                )
+
+            # Move the task
+            task = self.api.move_task(task_id, project_id=project.id)
+
+            return self._success(
+                f"Moved task to #{project_name}: {task.content}",
+                data={"task_id": task.id, "project": project_name, "content": task.content}
+            )
+
+        except Exception as e:
+            return self._error("TodoistAPIError", f"Failed to move task: {str(e)}")
+
+    def list_projects(self) -> str:
+        """
+        Lists all projects in Todoist.
+
+        Returns a list of all projects with their IDs and names.
+        """
+        try:
+            projects = self._get_projects()
+
+            project_list = []
+            for project in projects:
+                project_info = {
+                    "id": project.id,
+                    "name": project.name,
+                    "color": project.color,
+                    "is_favorite": project.is_favorite
+                }
+                project_list.append(project_info)
+
+            # Create readable summary
+            summary_lines = [f"Found {len(projects)} project(s):\n"]
+            for i, project in enumerate(projects, 1):
+                fav_str = " ⭐" if project.is_favorite else ""
+                summary_lines.append(f"{i}. #{project.name}{fav_str}")
+
+            return self._success(
+                "\n".join(summary_lines),
+                data={"projects": project_list, "count": len(projects)}
+            )
+
+        except Exception as e:
+            return self._error("TodoistAPIError", f"Failed to list projects: {str(e)}")
+
+    def list_sections(self, project_name: str = None) -> str:
+        """
+        Lists sections, optionally filtered by project.
+
+        Args:
+            project_name: Optional project name to filter sections
+        """
+        try:
+            project_id = None
+            if project_name:
+                project = self._find_project_by_name(project_name)
+                if not project:
+                    return self._error("ProjectNotFound", f"Project '{project_name}' not found")
+                project_id = project.id
+
+            sections = self._get_sections(project_id=project_id)
+
+            if not sections:
+                return self._success("No sections found")
+
+            section_list = []
+            for section in sections:
+                section_info = {
+                    "id": section.id,
+                    "name": section.name,
+                    "project_id": section.project_id
+                }
+                section_list.append(section_info)
+
+            # Create readable summary
+            filter_msg = f" in project '{project_name}'" if project_name else ""
+            summary_lines = [f"Found {len(sections)} section(s){filter_msg}:\n"]
+            for i, section in enumerate(sections, 1):
+                summary_lines.append(f"{i}. {section.name}")
+
+            return self._success(
+                "\n".join(summary_lines),
+                data={"sections": section_list, "count": len(sections)}
+            )
+
+        except Exception as e:
+            return self._error("TodoistAPIError", f"Failed to list sections: {str(e)}")
+
+    def list_labels(self) -> str:
+        """
+        Lists all personal labels in Todoist.
+
+        Returns a list of all labels with their names and colors.
+        """
+        try:
+            labels = self._get_labels()
+
+            if not labels:
+                return self._success("No labels found")
+
+            label_list = []
+            for label in labels:
+                label_info = {
+                    "id": label.id,
+                    "name": label.name,
+                    "color": label.color,
+                    "is_favorite": label.is_favorite
+                }
+                label_list.append(label_info)
+
+            # Create readable summary
+            summary_lines = [f"Found {len(labels)} label(s):\n"]
+            for i, label in enumerate(labels, 1):
+                fav_str = " ⭐" if label.is_favorite else ""
+                summary_lines.append(f"{i}. @{label.name}{fav_str}")
+
+            return self._success(
+                "\n".join(summary_lines),
+                data={"labels": label_list, "count": len(labels)}
+            )
+
+        except Exception as e:
+            return self._error("TodoistAPIError", f"Failed to list labels: {str(e)}")
+
+    def get_comments(self, task_id: str) -> str:
+        """
+        Gets all comments for a task.
+
+        Args:
+            task_id: The ID of the task
+        """
+        try:
+            comments_paginator = self.api.get_comments(task_id=task_id)
+            comments = next(iter(comments_paginator))
+
+            if not comments:
+                return self._success("No comments found")
+
+            comment_list = []
+            for comment in comments:
+                comment_info = {
+                    "id": comment.id,
+                    "content": comment.content,
+                    "posted_at": comment.posted_at
+                }
+                comment_list.append(comment_info)
+
+            # Create readable summary
+            summary_lines = [f"Found {len(comments)} comment(s):\n"]
+            for i, comment in enumerate(comments, 1):
+                summary_lines.append(f"{i}. {comment.content} (posted: {comment.posted_at})")
+
+            return self._success(
+                "\n".join(summary_lines),
+                data={"comments": comment_list, "count": len(comments)}
+            )
+
+        except Exception as e:
+            return self._error("TodoistAPIError", f"Failed to get comments: {str(e)}")
 
     def query_rules(self, search_term: str = None) -> str:
         """
