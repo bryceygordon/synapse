@@ -2,7 +2,7 @@
 
 **Purpose:** This file stores learned preferences and patterns discovered through conversations.
 **Maintained by:** TodoistAgent (updated with user approval)
-**Last updated:** 2025-10-15 2025-10-15 2025-10-15 2025-10-15 2025-10-15 2025-10-15 2025-10-15 2025-10-15
+**Last updated:** 2025-10-15 2025-10-15 2025-10-15 2025-10-15 2025-10-15 2025-10-15 2025-10-15 2025-10-15 2025-10-15
 
 ---
 
@@ -166,6 +166,8 @@ This is much easier to read than inline format.
 ---
 
 Tags must follow the format '@word' and cannot contain spaces or multiple '@' symbols in a row. Tags like '@this,@is,@a,@tag' are considered malformed and should be corrected.
+
+Tags must not contain spaces.
 
 ### Poison/Spray Tasks:
 - Tasks involving poisoning (pavers, spiders, weeds) are @weather dependent
