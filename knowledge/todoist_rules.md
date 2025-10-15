@@ -2,13 +2,15 @@
 
 **Purpose:** This file stores learned preferences and patterns discovered through conversations.
 **Maintained by:** TodoistAgent (updated with user approval)
-**Last updated:** 2025-10-15 2025-10-15 2025-10-15 2025-10-15 2025-10-15 2025-10-15 2025-10-15 2025-10-15 2025-10-15 2025-10-15 2025-10-15 2025-10-15 2025-10-15
+**Last updated:** 2025-10-15 2025-10-15 2025-10-15 2025-10-15 2025-10-15 2025-10-15 2025-10-15 2025-10-15 2025-10-15 2025-10-15 2025-10-15 2025-10-15 2025-10-15 2025-10-15
 
 ---
 
 ## Weekly Review Process
 
 The user has a specific weekly review workflow that must be followed:
+
+When starting a weekly review, always begin with processing tasks from the Inbox project before moving on to the next projects.
 
 ### Intuitive Processing Workflow:
 - **Agent presents pre-processed suggestions** for each batch based on learned patterns
