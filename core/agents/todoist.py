@@ -180,26 +180,19 @@ class TodoistAgent(BaseAgent):
         duration_unit: str = "minute"
     ) -> str:
         """
-        Creates a new task in Todoist.
+        Create task.
 
         Args:
-            content: The task description/title
-            project_name: Project name (e.g., "Processed", "Inbox", "Groceries")
-            labels: List of context labels as strings (e.g., ["home", "chore"] or ["test"])
-                   CRITICAL: Must be an array/list, NOT a string!
-                   - Correct: ["next", "yard", "home"]
-                   - WRONG: "@next @yard @home" or "next yard home" or "@[\"yard\", \"chore\"]"
-            priority: Priority level 1-4 (1=lowest/none, 4=highest). Default 1.
-            due_string: Due date - MUST be in YYYY-MM-DD format for dates, or natural language for recurring
-                       - Date only (recommended): "2025-11-03"
-                       - Date with time: "2025-11-03 10:00" or "2025-11-03 at 10am"
-                       - Recurring tasks: "every monday", "every 2 weeks", etc.
-                       CRITICAL: For non-recurring tasks, ALWAYS use YYYY-MM-DD format for accuracy
-            description: Additional notes/context for the task
-            section_name: Section name within the project (optional)
-            parent_id: Parent task ID to create a subtask (optional)
-            duration: Task duration amount (optional, e.g., 30)
-            duration_unit: Duration unit: "minute" or "day" (default: "minute")
+            content: Task title
+            project_name: Project
+            labels: Labels (no @)
+            priority: 1-4
+            due_string: YYYY-MM-DD
+            description: Notes
+            section_name: Section
+            parent_id: Parent ID
+            duration: Amount
+            duration_unit: Unit
         """
         try:
             # Find the project
@@ -286,13 +279,13 @@ class TodoistAgent(BaseAgent):
         sort_by: str = None
     ) -> str:
         """
-        Lists tasks from Todoist.
+        List tasks.
 
         Args:
-            project_name: Filter by project name (e.g., "Inbox", "Processed")
-            label: Filter by label (e.g., "home", "urgent")
-            filter_query: Search term to filter tasks by content (searches task content locally after fetching)
-            sort_by: Sort tasks by field (options: "created_asc", "created_desc", "priority_asc", "priority_desc")
+            project_name: Project filter
+            label: Label filter
+            filter_query: Search term
+            sort_by: Sort order
         """
         try:
             tasks = []
@@ -367,10 +360,10 @@ class TodoistAgent(BaseAgent):
 
     def complete_task(self, task_id: str) -> str:
         """
-        Marks a task as complete.
+        Complete task.
 
         Args:
-            task_id: The ID of the task to complete
+            task_id: Task ID
         """
         try:
             # Get task details first
@@ -399,20 +392,17 @@ class TodoistAgent(BaseAgent):
         duration_unit: str = "minute"
     ) -> str:
         """
-        Updates an existing task.
+        Update task.
 
         Args:
-            task_id: The ID of the task to update
-            content: New task description (optional)
-            labels: New labels list (optional, replaces existing)
-                   CRITICAL: Must be an array/list, NOT a string!
-                   - Correct: ["next", "yard", "home"]
-                   - WRONG: "@next @yard @home" or "next yard home" or "@[\"yard\", \"chore\"]"
-            priority: New priority 1-4 (optional)
-            due_string: New due date (optional, use "no date" to remove)
-            description: New description (optional)
-            duration: New task duration amount (optional)
-            duration_unit: Duration unit: "minute" or "day" (default: "minute")
+            task_id: Task ID
+            content: New title
+            labels: New labels (no @)
+            priority: 1-4
+            due_string: New date
+            description: New notes
+            duration: Amount
+            duration_unit: Unit
         """
         try:
             # Build update data
@@ -461,10 +451,10 @@ class TodoistAgent(BaseAgent):
 
     def get_task(self, task_id: str) -> str:
         """
-        Gets details of a specific task.
+        Get task details.
 
         Args:
-            task_id: The ID of the task to retrieve
+            task_id: Task ID
         """
         try:
             task = self.api.get_task(task_id)
@@ -496,11 +486,11 @@ class TodoistAgent(BaseAgent):
 
     def add_comment(self, task_id: str, comment: str) -> str:
         """
-        Adds a comment to a task.
+        Add comment.
 
         Args:
-            task_id: The ID of the task
-            comment: The comment text to add
+            task_id: Task ID
+            comment: Comment text
         """
         try:
             comment_obj = self.api.add_comment(
@@ -518,12 +508,10 @@ class TodoistAgent(BaseAgent):
 
     def delete_task(self, task_id: str) -> str:
         """
-        Permanently deletes a task.
+        Delete task.
 
         Args:
-            task_id: The ID of the task to delete
-
-        WARNING: This cannot be undone. Consider completing the task instead.
+            task_id: Task ID
         """
         try:
             # Get task details first
@@ -543,10 +531,10 @@ class TodoistAgent(BaseAgent):
 
     def reopen_task(self, task_id: str) -> str:
         """
-        Reopens a completed task.
+        Reopen task.
 
         Args:
-            task_id: The ID of the task to reopen
+            task_id: Task ID
         """
         try:
             # Get task details first
@@ -565,11 +553,11 @@ class TodoistAgent(BaseAgent):
 
     def move_task(self, task_id: str, project_name: str) -> str:
         """
-        Moves a task to a different project.
+        Move task.
 
         Args:
-            task_id: The ID of the task to move
-            project_name: The name of the destination project
+            task_id: Task ID
+            project_name: Destination
         """
         try:
             # Find the destination project
@@ -596,11 +584,7 @@ class TodoistAgent(BaseAgent):
             return self._error("TodoistAPIError", f"Failed to move task: {str(e)}")
 
     def list_projects(self) -> str:
-        """
-        Lists all projects in Todoist.
-
-        Returns a list of all projects with their IDs and names.
-        """
+        """List projects."""
         try:
             projects = self._get_projects()
 
@@ -630,10 +614,10 @@ class TodoistAgent(BaseAgent):
 
     def list_sections(self, project_name: str = None) -> str:
         """
-        Lists sections, optionally filtered by project.
+        List sections.
 
         Args:
-            project_name: Optional project name to filter sections
+            project_name: Project filter
         """
         try:
             project_id = None
@@ -672,11 +656,7 @@ class TodoistAgent(BaseAgent):
             return self._error("TodoistAPIError", f"Failed to list sections: {str(e)}")
 
     def list_labels(self) -> str:
-        """
-        Lists all personal labels in Todoist.
-
-        Returns a list of all labels with their names and colors.
-        """
+        """List labels."""
         try:
             labels = self._get_labels()
 
@@ -709,10 +689,10 @@ class TodoistAgent(BaseAgent):
 
     def get_comments(self, task_id: str) -> str:
         """
-        Gets all comments for a task.
+        Get comments.
 
         Args:
-            task_id: The ID of the task
+            task_id: Task ID
         """
         try:
             comments_paginator = self.api.get_comments(task_id=task_id)

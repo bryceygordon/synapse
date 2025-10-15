@@ -24,6 +24,7 @@ Contexts are the **real organizing principle** of this system. They define WHERE
 
 ### Location Contexts
 - **@home**: Tasks done at home
+- **@house**: Tasks done inside
 - **@yard**: Outdoor/garden tasks
 - **@errand**: General tasks requiring going out
 - **@bunnings**: Specific errand at Bunnings (hardware store)
@@ -47,6 +48,15 @@ Contexts are the **real organizing principle** of this system. They define WHERE
 - **@waiting**: Waiting on someone/something (delegated or blocked)
 - **@weather**: Weather-dependent tasks (can't do if raining, etc.)
 
+### Energy Contexts
+- **@lowenergy**: tasks that don't take a lot of energy to complete
+- **@medenergy**: Tasks that take a medium amount of energy
+- **@highenergy**: Tasks that take a lot of energy whether that be physical or mental
+
+### Duration Contexts:
+- **@short**: Tasks that dont take a lot of time
+- **@medium**: Tasks that take about 15mins - 1h
+- **@long**: Tasks that take over an hour to complete
 ---
 
 ## Context Combination Rules
@@ -71,16 +81,16 @@ Contexts are the **real organizing principle** of this system. They define WHERE
 - **Use only when:** Task is truly critical and needs elevation above others
 - **Principle:** Don't pollute priority space with routine/normal tasks
 - **Effect:** When you DO set a priority, it actually means something
+- **Ranking:** (No priority or P4), P3 important, P2 must do, P1 critical.
 
 ---
 
 ## Due Date Philosophy
 
-**Due dates mean "MUST be done on this exact day"** - not "I'd like to do this by then"
 
-- **Use for:** Hard deadlines, appointments, time-critical items
-- **Don't use for:** Soft goals, aspirational timelines, "would be nice by..."
-- **Principle:** Be conservative with due dates to maintain their significance
+- **Use for:** What i plan to do tasks.
+- **Don't use for:** Soft goals are fine and for planning my day using dates are also fine
+- **imporant dates:** Important dates will have a corresponding priority level depending on their importance
 
 ---
 

@@ -30,6 +30,11 @@
       "file": "learned_rules.md",
       "description": "User-approved learned preferences and patterns",
       "tokens_approx": 1000
+    },
+    "tool_reference": {
+      "file": "tool_reference.md",
+      "description": "Complete tool documentation with parameters and examples",
+      "tokens_approx": 1200
     }
   },
   "usage_note": "Query topics on-demand using query_knowledge(topic) to minimize token usage"

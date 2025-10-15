@@ -39,11 +39,13 @@ def load_agent(agent_name: str, config_path: str = "agents") -> BaseAgent:
 
     # 4. Dynamically import the agent's module and get the class.
     # This is the clever part: it turns a string into a real Python class.
+    # If 'module' is specified in config, use that; otherwise default to agent_name
+    module_name = config_data.get("module", f"core.agents.{agent_name}")
     try:
-        agent_module = importlib.import_module(f"core.agents.{agent_name}")
+        agent_module = importlib.import_module(module_name)
         AgentClass = getattr(agent_module, class_name)
     except (ImportError, AttributeError) as e:
-        raise AttributeError(f"Could not find class '{class_name}' in module 'core.agents.{agent_name}'. Please check your configuration. Original error: {e}")
+        raise AttributeError(f"Could not find class '{class_name}' in module '{module_name}'. Please check your configuration. Original error: {e}")
 
     # 5. Instantiate the class with its configuration and return it.
     return AgentClass(config=config_data)
