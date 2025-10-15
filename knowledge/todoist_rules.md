@@ -2,7 +2,7 @@
 
 **Purpose:** This file stores learned preferences and patterns discovered through conversations.
 **Maintained by:** TodoistAgent (updated with user approval)
-**Last updated:** 2025-10-15 2025-10-15 2025-10-15 2025-10-15 2025-10-15
+**Last updated:** 2025-10-15 2025-10-15 2025-10-15 2025-10-15 2025-10-15 2025-10-15
 
 ---
 
@@ -34,6 +34,23 @@ The user has a specific weekly review workflow that must be followed:
 ---
 
 ## Task Processing Rules
+
+### Label Format Requirements:
+- **NEVER use @@label format** - always single @ symbol
+- All labels must be @label format (not @@label)
+- Agent must fix any @@label errors immediately when spotted
+
+### Task Presentation Format:
+User prefers clean, nested presentation format:
+```
+**Task Title**
+  - Contexts: @context1 @context2
+  - Energy: @energylevel  
+  - Timeframe: @timeframe
+  - Special: @nokids (if applicable)
+  - Next Action: [description] @next @contexts
+```
+This is much easier to read than inline format.
 
 ### Batch Processing Requirement:
 - **NEVER process tasks one at a time** during reviews
