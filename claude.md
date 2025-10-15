@@ -411,6 +411,16 @@ docs(scope): Description
 - Tests must pass before committing
 - Keep commits focused and atomic
 - Push to `main` branch
+- **ALWAYS commit and push after completing a feature or fix**
+
+**Commit Checklist (for Claude Code):**
+1. ✅ Run all relevant tests
+2. ✅ Update documentation (claude.md)
+3. ✅ `git add -A`
+4. ✅ `git commit` with proper message format
+5. ✅ `git push`
+
+This ensures all work is saved and the remote repository stays up-to-date.
 
 ## Resources
 
