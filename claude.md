@@ -335,6 +335,73 @@ print(f"Success: {result}")
 **For New Features:**
 When adding new CLI output, always use Rich formatting from the start. Check `core/main.py`'s `display_tool_result()` function for examples.
 
+### Testing Requirements (MANDATORY)
+
+**ALL new functionality MUST have comprehensive tests:**
+
+**DO:**
+- ✅ Write tests for every new function, method, or feature
+- ✅ Create unit tests that mock external dependencies (API calls, file I/O)
+- ✅ Test both success and error cases
+- ✅ Test edge cases (empty inputs, long inputs, null values, etc.)
+- ✅ Use descriptive test names that explain what is being tested
+- ✅ Mock external dependencies with `unittest.mock` or `pytest-mock`
+- ✅ Verify behavior, not implementation details
+- ✅ Run tests before committing (`pytest tests/ -v`)
+
+**DON'T:**
+- ❌ Skip tests because functionality "seems simple"
+- ❌ Write tests that depend on external services (except in live integration tests)
+- ❌ Test implementation details that might change
+- ❌ Commit code without running tests first
+- ❌ Leave failing tests in the codebase
+
+**Test Organization:**
+- **Unit Tests**: `tests/test_*.py` - Mock all external dependencies
+- **Integration Tests**: `test_*_live.py` (root level) - Test with real APIs
+- **Test Naming**: `test_<what_it_does>` (e.g., `test_displays_task_list_as_table`)
+
+**Example Test Structure:**
+```python
+import pytest
+from unittest.mock import Mock, patch
+
+class TestYourFeature:
+    """Test suite for your feature."""
+
+    @patch('module.external_dependency')
+    def test_success_case(self, mock_dependency):
+        """Test that feature works correctly with valid input."""
+        # Arrange
+        mock_dependency.return_value = "expected"
+
+        # Act
+        result = your_function("input")
+
+        # Assert
+        assert result == "expected"
+        mock_dependency.assert_called_once_with("input")
+
+    @patch('module.external_dependency')
+    def test_error_case(self, mock_dependency):
+        """Test that feature handles errors gracefully."""
+        # Arrange
+        mock_dependency.side_effect = Exception("API error")
+
+        # Act & Assert
+        with pytest.raises(Exception):
+            your_function("input")
+```
+
+**When to Write Tests:**
+1. **Before committing** - Every commit should include tests for new functionality
+2. **After fixing bugs** - Add regression tests to prevent the bug from returning
+3. **When refactoring** - Ensure existing tests still pass
+4. **For CLI output** - Test Rich formatting, table creation, panel display
+5. **For API integrations** - Test response parsing, error handling, data transformation
+
+**Testing Checklist (see Development Workflow below)**
+
 ### Provider Abstraction
 
 **DO:**
@@ -449,14 +516,26 @@ docs(scope): Description
 - Push to `main` branch
 - **ALWAYS commit and push after completing a feature or fix**
 
-**Commit Checklist (for Claude Code):**
-1. ✅ Run all relevant tests
-2. ✅ Update documentation (claude.md)
-3. ✅ `git add -A`
-4. ✅ `git commit` with proper message format
-5. ✅ `git push`
+**Testing Checklist:**
+When adding new functionality, ensure tests are comprehensive:
+1. ✅ Create test file `tests/test_<feature>.py` if it doesn't exist
+2. ✅ Write tests for all new functions/methods
+3. ✅ Test success cases with valid inputs
+4. ✅ Test error cases with invalid inputs
+5. ✅ Test edge cases (empty, null, very long, etc.)
+6. ✅ Mock all external dependencies (APIs, file I/O, databases)
+7. ✅ Run tests locally: `pytest tests/test_<feature>.py -v`
+8. ✅ Verify all tests pass before committing
 
-This ensures all work is saved and the remote repository stays up-to-date.
+**Commit Checklist (for Claude Code):**
+1. ✅ Run all relevant tests (`pytest tests/ -v`)
+2. ✅ Ensure ALL tests pass (no failures)
+3. ✅ Update documentation (claude.md)
+4. ✅ `git add -A`
+5. ✅ `git commit` with proper message format
+6. ✅ `git push`
+
+This ensures all work is tested, documented, and saved to the remote repository.
 
 ## Resources
 
