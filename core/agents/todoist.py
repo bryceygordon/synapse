@@ -95,10 +95,20 @@ class TodoistAgent(BaseAgent):
         return self._labels_cache
 
     def _get_tasks_list(self, **kwargs) -> list[Task]:
-        """Get tasks as a list (handles ResultsPaginator)."""
+        """
+        Get ALL tasks as a list (handles pagination).
+
+        The Todoist API returns paginated results (typically 50 items per page).
+        This method iterates through ALL pages to return the complete task list.
+        """
         tasks_paginator = self.api.get_tasks(**kwargs)
-        # ResultsPaginator's first iteration returns the full list
-        return next(iter(tasks_paginator))
+        all_tasks = []
+
+        # Iterate through ALL pages of results
+        for page in tasks_paginator:
+            all_tasks.extend(page)
+
+        return all_tasks
 
     def _success(self, content: str, data: dict = None) -> str:
         """Helper to return structured success response."""
