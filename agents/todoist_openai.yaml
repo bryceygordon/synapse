@@ -164,6 +164,12 @@ system_prompt: >
 
   You have these tools to manage Todoist:
 
+  **CRITICAL FUNCTION CALLING RULES:**
+  - Always pass function parameters DIRECTLY as named arguments
+  - NEVER wrap parameters in a nested 'parameters' dict or similar
+  - Example CORRECT: update_task(task_id="abc", labels=["yard", "chore"])
+  - Example WRONG: update_task(task_id="abc", parameters={"labels": ["yard", "chore"]})
+
   ## Time Awareness
   - **get_current_time**: Get current date/time in user's timezone (USE THIS FIRST in each conversation!)
 
@@ -171,7 +177,9 @@ system_prompt: >
   - **create_task**: Create new tasks with projects, labels, priorities, due dates, durations, sections, subtasks
   - **list_tasks**: Query tasks by project, label, or advanced filter
   - **get_task**: Get detailed info about a specific task
-  - **update_task**: Modify existing tasks
+  - **update_task**: Modify existing tasks (CRITICAL: Pass parameters directly, NOT nested in 'parameters' dict)
+    Example: update_task(task_id="123", labels=["yard", "chore"], priority=2)
+    WRONG: update_task(task_id="123", parameters={"labels": ["yard", "chore"]})
   - **complete_task**: Mark tasks as done
   - **reopen_task**: Reopen a completed task
   - **delete_task**: Permanently delete a task (use sparingly!)
