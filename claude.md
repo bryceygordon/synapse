@@ -182,6 +182,36 @@ These aliases are defined in `~/.zshrc` and handle venv activation automatically
 
 This happens **before** you type anything, so the agent is ready immediately.
 
+### Beautiful CLI Output
+
+Synapse uses **Rich** library for gorgeous terminal output:
+
+**Features:**
+- 🎨 **Syntax-highlighted JSON** - Tool results displayed with color-coded JSON
+- 📊 **Rich Tables** - Task listings shown in beautiful formatted tables
+- 📦 **Panels** - Assistant responses framed in elegant panels
+- ⏳ **Animated Spinners** - Smooth "Thinking..." animations instead of static text
+- 🎯 **Color-coded Tool Calls** - Easy-to-read tool invocations with argument highlighting
+
+**Task List Display:**
+When TodoistAgent returns task lists, they're automatically displayed as Rich tables with:
+- Content, Labels, Priority, Due Date, Creation Date columns
+- Color-coded priorities and labels
+- Automatic truncation (shows first 10 tasks)
+- Rounded box styling
+
+**Example Output:**
+```
+╭─────── 📋 list_tasks - Found 5 task(s) ───────╮
+│ Content              Labels   Priority  Due    │
+│ Buy groceries        @errand  P2       today   │
+│ Write documentation  @work             tomorrow│
+│ Call dentist         @phone   P4       friday  │
+╰──────────────────────────────────────────────╯
+```
+
+All JSON tool results are syntax-highlighted with the Monokai theme for easy reading.
+
 ## Development
 
 ### Setup
