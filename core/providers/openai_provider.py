@@ -1,7 +1,7 @@
 """
-Anthropic (Claude) provider implementation.
+OpenAI provider implementation.
 
-This module provides integration with Anthropic's Claude API using the Messages API.
+This module provides integration with OpenAI's API using the Chat Completions API.
 """
 
 import os
@@ -10,7 +10,7 @@ import inspect
 import re
 from typing import get_type_hints, get_origin, get_args, Any
 
-from anthropic import Anthropic
+from openai import OpenAI
 from core.providers.base_provider import BaseProvider, ToolCall, ProviderResponse
 
 
@@ -44,31 +44,31 @@ def parse_docstring_args(docstring: str) -> dict[str, str]:
     return descriptions
 
 
-class AnthropicProvider(BaseProvider):
-    """Provider implementation for Anthropic's Claude AI."""
+class OpenAIProvider(BaseProvider):
+    """Provider implementation for OpenAI's GPT models."""
 
-    def create_client(self) -> Anthropic:
+    def create_client(self) -> OpenAI:
         """
-        Create and return an Anthropic client instance.
+        Create and return an OpenAI client instance.
 
         Returns:
-            Anthropic client configured with API key from environment
+            OpenAI client configured with API key from environment
 
         Raises:
-            ValueError: If ANTHROPIC_API_KEY environment variable is not set
+            ValueError: If OPENAI_API_KEY environment variable is not set
         """
-        api_key = os.getenv("ANTHROPIC_API_KEY")
+        api_key = os.getenv("OPENAI_API_KEY")
         if not api_key:
             raise ValueError(
-                "ANTHROPIC_API_KEY environment variable is not set. "
-                "Please set it to your Anthropic API key."
+                "OPENAI_API_KEY environment variable is not set. "
+                "Please set it to your OpenAI API key."
             )
 
-        return Anthropic(api_key=api_key)
+        return OpenAI(api_key=api_key)
 
     def send_message(
         self,
-        client: Anthropic,
+        client: OpenAI,
         messages: list[dict],
         system_prompt: str,
         model: str,
@@ -76,28 +76,26 @@ class AnthropicProvider(BaseProvider):
         **kwargs
     ) -> ProviderResponse:
         """
-        Send a message to Claude and return the response.
+        Send a message to OpenAI and return the response.
 
         Args:
-            client: Anthropic client instance
+            client: OpenAI client instance
             messages: List of message dictionaries with 'role' and 'content'
-            system_prompt: System instructions for Claude
-            model: Claude model identifier (e.g., 'claude-sonnet-4.5')
-            tools: List of tool schemas in Anthropic format
-            **kwargs: Additional parameters (max_tokens, temperature, etc.)
+            system_prompt: System instructions for the model
+            model: OpenAI model identifier (e.g., 'gpt-4o', 'gpt-4o-mini')
+            tools: List of tool schemas in OpenAI format
+            **kwargs: Additional parameters (temperature, max_tokens, etc.)
 
         Returns:
             ProviderResponse with standardized response data
         """
-        # Set default max_tokens if not provided
-        max_tokens = kwargs.pop("max_tokens", 4096)
+        # Build messages list with system prompt first
+        full_messages = [{"role": "system", "content": system_prompt}] + messages
 
         # Build the API request
         request_params = {
             "model": model,
-            "max_tokens": max_tokens,
-            "system": system_prompt,
-            "messages": messages,
+            "messages": full_messages,
         }
 
         # Add tools if provided
@@ -108,21 +106,21 @@ class AnthropicProvider(BaseProvider):
         request_params.update(kwargs)
 
         # Make the API call
-        response = client.messages.create(**request_params)
+        response = client.chat.completions.create(**request_params)
 
         # Parse the response
-        text_content = None
+        message = response.choices[0].message
+        text_content = message.content
         tool_calls = []
 
-        for content_block in response.content:
-            if content_block.type == "text":
-                text_content = content_block.text
-            elif content_block.type == "tool_use":
+        # Check for tool calls
+        if message.tool_calls:
+            for tool_call in message.tool_calls:
                 tool_calls.append(
                     ToolCall(
-                        id=content_block.id,
-                        name=content_block.name,
-                        arguments=content_block.input
+                        id=tool_call.id,
+                        name=tool_call.function.name,
+                        arguments=json.loads(tool_call.function.arguments)
                     )
                 )
 
@@ -130,23 +128,32 @@ class AnthropicProvider(BaseProvider):
             text=text_content,
             tool_calls=tool_calls,
             raw_response=response,
-            finish_reason=response.stop_reason or "unknown"
+            finish_reason=response.choices[0].finish_reason or "unknown"
         )
 
     def format_tool_schemas(self, agent_instance: Any) -> list[dict]:
         """
-        Generate Anthropic-compatible tool schemas from agent methods.
+        Generate OpenAI-compatible tool schemas from agent methods.
 
-        Claude's tool schema format is slightly different from OpenAI's:
-        - No "type": "function" wrapper
-        - Uses "input_schema" instead of "parameters"
-        - Otherwise similar structure
+        OpenAI's tool schema format:
+        {
+            "type": "function",
+            "function": {
+                "name": "tool_name",
+                "description": "description",
+                "parameters": {
+                    "type": "object",
+                    "properties": {...},
+                    "required": [...]
+                }
+            }
+        }
 
         Args:
             agent_instance: The agent object with methods to expose as tools
 
         Returns:
-            List of tool schemas in Anthropic format
+            List of tool schemas in OpenAI format
         """
         schemas = []
         tool_names = getattr(agent_instance, 'tools', [])
@@ -206,15 +213,18 @@ class AnthropicProvider(BaseProvider):
                 if param.default is inspect.Parameter.empty:
                     required.append(param.name)
 
-            # Anthropic format: no "type" wrapper, uses "input_schema"
+            # OpenAI format: wrapped in "type": "function" with "function" object
             schema = {
-                "name": tool_name,
-                "description": description,
-                "input_schema": {
-                    "type": "object",
-                    "properties": properties,
-                    "required": required,
-                },
+                "type": "function",
+                "function": {
+                    "name": tool_name,
+                    "description": description,
+                    "parameters": {
+                        "type": "object",
+                        "properties": properties,
+                        "required": required,
+                    },
+                }
             }
             schemas.append(schema)
 
@@ -222,20 +232,20 @@ class AnthropicProvider(BaseProvider):
 
     def format_tool_results(self, tool_call_id: str, result: str) -> dict:
         """
-        Format tool execution results for Anthropic.
+        Format tool execution results for OpenAI.
 
-        Anthropic expects tool results in a specific message format.
+        OpenAI expects tool results as messages with role "tool".
 
         Args:
             tool_call_id: The ID of the tool call being responded to
             result: The string result from executing the tool
 
         Returns:
-            Dictionary formatted for Anthropic's tool result format
+            Dictionary formatted for OpenAI's tool result format
         """
         return {
-            "type": "tool_result",
-            "tool_use_id": tool_call_id,
+            "role": "tool",
+            "tool_call_id": tool_call_id,
             "content": result
         }
 
@@ -244,23 +254,44 @@ class AnthropicProvider(BaseProvider):
         Indicate whether streaming is supported.
 
         Returns:
-            True (Anthropic supports streaming, though not implemented yet)
+            True (OpenAI supports streaming, though not implemented yet)
         """
-        return True  # Anthropic supports streaming, but we're not implementing it in Phase 2
+        return True  # OpenAI supports streaming, but we're not implementing it yet
 
     def get_assistant_message(self, response: ProviderResponse) -> dict:
         """
-        Extract the assistant message dict for Anthropic conversation history.
+        Extract the assistant message dict for OpenAI conversation history.
 
-        For Anthropic, we return the content blocks from the response.
+        For OpenAI, we need to return the message object from the response,
+        which includes tool_calls if present.
 
         Args:
             response: The ProviderResponse from send_message
 
         Returns:
-            Dictionary with 'role' and 'content'
+            Dictionary with 'role' and either 'content' or 'tool_calls'
         """
-        return {
-            "role": "assistant",
-            "content": response.raw_response.content
-        }
+        message = response.raw_response.choices[0].message
+
+        # Build the assistant message dict
+        assistant_msg = {"role": "assistant"}
+
+        # Add content if present
+        if message.content:
+            assistant_msg["content"] = message.content
+
+        # Add tool_calls if present
+        if message.tool_calls:
+            assistant_msg["tool_calls"] = [
+                {
+                    "id": tc.id,
+                    "type": "function",
+                    "function": {
+                        "name": tc.function.name,
+                        "arguments": tc.function.arguments
+                    }
+                }
+                for tc in message.tool_calls
+            ]
+
+        return assistant_msg

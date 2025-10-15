@@ -138,3 +138,19 @@ class BaseProvider(ABC):
             True if streaming is supported, False otherwise
         """
         pass
+
+    @abstractmethod
+    def get_assistant_message(self, response: ProviderResponse) -> dict:
+        """
+        Extract the assistant message dict for conversation history.
+
+        This handles provider-specific message formats and returns a dict
+        that can be appended to the messages array.
+
+        Args:
+            response: The ProviderResponse from send_message
+
+        Returns:
+            Dictionary formatted for this provider's message history
+        """
+        pass

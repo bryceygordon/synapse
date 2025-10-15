@@ -167,7 +167,11 @@ def chat(agent_name: str = "coder"):
 
         # Generate tool schemas for this provider
         tools = provider.format_tool_schemas(agent)
-        tool_names = [t.get("name") for t in tools]
+        # Handle different schema formats (Anthropic vs OpenAI)
+        tool_names = [
+            t.get("name") or t.get("function", {}).get("name")
+            for t in tools
+        ]
         console.print(f"   [cyan]Tools:[/cyan] [dim]{', '.join(tool_names)}[/dim]\n")
 
     except Exception as e:
@@ -180,7 +184,7 @@ def chat(agent_name: str = "coder"):
     messages = []
 
     # For TodoistAgent, trigger startup sequence automatically
-    if agent_name == "todoist":
+    if agent_name.startswith("todoist"):
         console.print("🚀 [bold yellow]Initializing TodoistAgent...[/bold yellow]\n")
 
         # Send initial startup message
@@ -203,10 +207,8 @@ def chat(agent_name: str = "coder"):
         if response.tool_calls:
             console.print(f"🛠️  [cyan]Running startup sequence ({len(response.tool_calls)} tool(s))...[/cyan]\n")
 
-            messages.append({
-                "role": "assistant",
-                "content": response.raw_response.content
-            })
+            # Add assistant's tool use message using provider-specific format
+            messages.append(provider.get_assistant_message(response))
 
             tool_results = []
             for tool_call in response.tool_calls:
@@ -217,10 +219,15 @@ def chat(agent_name: str = "coder"):
                     provider.format_tool_results(tool_call.id, str(result))
                 )
 
-            messages.append({
-                "role": "user",
-                "content": tool_results
-            })
+            # Add tool results to message history
+            # Provider-specific handling for different message formats
+            if agent.provider == "anthropic":
+                messages.append({
+                    "role": "user",
+                    "content": tool_results
+                })
+            else:
+                messages.extend(tool_results)
 
             # Get greeting
             with console.status("[bold green]Preparing greeting...", spinner="dots"):
@@ -263,12 +270,8 @@ def chat(agent_name: str = "coder"):
             if response.tool_calls:
                 console.print(f"🛠️  [cyan]Invoking {len(response.tool_calls)} tool(s)...[/cyan]\n")
 
-                # Add assistant's tool use message to history
-                # Use raw_response.content for provider-specific format
-                messages.append({
-                    "role": "assistant",
-                    "content": response.raw_response.content
-                })
+                # Add assistant's tool use message using provider-specific format
+                messages.append(provider.get_assistant_message(response))
 
                 # Execute each tool
                 tool_results = []
@@ -288,10 +291,16 @@ def chat(agent_name: str = "coder"):
                     )
 
                 # Add tool results to message history
-                messages.append({
-                    "role": "user",
-                    "content": tool_results
-                })
+                # For Anthropic: single user message with list of tool results
+                # For OpenAI: tool results are already individual message dicts
+                if agent.provider == "anthropic":
+                    messages.append({
+                        "role": "user",
+                        "content": tool_results
+                    })
+                else:
+                    # OpenAI: extend messages with tool result messages
+                    messages.extend(tool_results)
 
                 # Get next response after tool execution
                 console.print()
@@ -402,14 +411,15 @@ def run(goal: str, max_steps: int = 15, agent_name: str = "coder"):
                 )
 
             # Update conversation with tool results
-            messages.append({
-                "role": "assistant",
-                "content": response.raw_response.content
-            })
-            messages.append({
-                "role": "user",
-                "content": tool_results
-            })
+            messages.append(provider.get_assistant_message(response))
+            # Provider-specific handling for different message formats
+            if agent.provider == "anthropic":
+                messages.append({
+                    "role": "user",
+                    "content": tool_results
+                })
+            else:
+                messages.extend(tool_results)
 
             # If commit was requested, consider goal achieved
             if commit_requested:

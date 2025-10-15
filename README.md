@@ -36,16 +36,17 @@ Synapse is designed to be a foundation for creating specialized AI agents that c
 
 ## Current Status
 
-**Multi-Platform Refactoring Complete** ✨
+**Multi-Platform Support Complete** ✨
 
 - ✅ Provider abstraction layer implemented
 - ✅ Claude/Anthropic provider fully functional
-- ✅ Pluggable knowledge store system (ChromaDB for file-based agents)
+- ✅ OpenAI/GPT provider fully functional
+- ✅ Local file-based knowledge system (no vector DB required)
 - ✅ Configuration-driven architecture working
 - ✅ End-to-end testing verified
-- 🔮 **Planned**: OpenAI provider reintegration
-- 🔮 **Planned**: Additional knowledge stores (email, tasks, etc.)
-- 🔮 **Planned**: More workflow agents beyond CoderAgent
+- ✅ Multiple agent variants (Todoist GTD with Claude & GPT, Coder)
+- 🔮 **Planned**: Additional providers (Gemini, etc.)
+- 🔮 **Planned**: More workflow agents
 
 ## Quick Start
 
@@ -59,39 +60,57 @@ python -m venv .venv
 source .venv/bin/activate  # On Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 
-# Set up your Anthropic API key
+# Set up API keys in .env
 echo "ANTHROPIC_API_KEY=your-key-here" >> .env
+echo "OPENAI_API_KEY=your-key-here" >> .env
+echo "TODOIST_API_TOKEN=your-token-here" >> .env  # If using Todoist agent
 
-# Start a chat session with the CoderAgent
-python -m core.main chat
+# Easy launcher (recommended)
+./synapse todoist          # Todoist GTD with Claude
+./synapse todoist-openai   # Todoist GTD with GPT-4o-mini
+./synapse coder            # Coder agent with Claude
 
-# Or run autonomous mode with a goal
-python -m core.main run "Create a new Python module with a hello world function"
+# Or use Python directly
+python -m core.main chat --agent-name todoist
+python -m core.main run "Create a new Python module" --agent-name coder
 ```
 
 ### Configuration
 
-Edit `agents/coder.yaml` to customize the agent:
+Edit agent YAML files to customize behavior:
 
 ```yaml
-name: CoderAgent
-provider: anthropic  # Or 'openai' once implemented
-model: claude-sonnet-4-20250514
+# agents/todoist_openai.yaml
+name: TodoistAgent
+provider: openai              # 'anthropic' or 'openai'
+model: gpt-4o-mini           # or 'gpt-4o', 'claude-sonnet-4-20250514', etc.
+
+system_prompt: >
+  Your agent instructions...
+
 tools:
-  - read_file
-  - write_file
-  - list_files
-  - run_tests
-  - git_commit
+  - get_current_time
+  - create_task
+  - list_tasks
+  # ... more tools
 ```
+
+**Available Agents:**
+- `todoist` - GTD task manager with Claude Sonnet 4
+- `todoist-openai` - GTD task manager with GPT-4o-mini (⭐ recommended for cost)
+- `coder` - Software development agent with Claude Sonnet 4
 
 ## Example Use Cases
 
+- **GTD Task Management**: Intelligent Todoist integration following GTD methodology with learning capabilities
 - **Code Development**: Autonomous coding agent that reads, writes, tests, and commits code
 - **Email Management**: Agent that triages, labels, and responds to emails based on your rules
-- **Task Orchestration**: Integration with Todoist/task managers for intelligent task creation and prioritization
 - **Document Processing**: Bulk analysis, summarization, or transformation of documents
 - **Custom Workflows**: Any repetitive task that benefits from AI reasoning + programmatic actions
+
+**Current Working Agents:**
+- ✅ **TodoistAgent**: Full GTD implementation with natural language task creation, context awareness, and preference learning
+- ✅ **CoderAgent**: Autonomous software development with file operations and git integration
 
 ## Project Structure
 

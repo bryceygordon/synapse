@@ -25,3 +25,4 @@ env/
 # Test artifacts
 .pytest_cache/
 htmlcov/
+.env.tmp

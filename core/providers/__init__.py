@@ -31,15 +31,12 @@ def get_provider(provider_name: str) -> BaseProvider:
         from core.providers.anthropic_provider import AnthropicProvider
         return AnthropicProvider()
     elif provider_name == "openai":
-        raise NotImplementedError(
-            "OpenAI provider is not yet implemented. "
-            "It will be added in a future phase. "
-            "Currently supported providers: anthropic"
-        )
+        from core.providers.openai_provider import OpenAIProvider
+        return OpenAIProvider()
     else:
         raise ValueError(
             f"Unknown provider: '{provider_name}'. "
-            f"Supported providers: anthropic"
+            f"Supported providers: anthropic, openai"
         )
 
 

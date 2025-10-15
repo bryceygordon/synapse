@@ -1,0 +1,78 @@
+#!/usr/bin/env bash
+# Synapse AI Agent Launcher
+# Usage: ./synapse [agent-name] [command]
+
+# Get the directory where this script lives
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+VENV_PATH="$SCRIPT_DIR/.venv"
+
+# Check if virtual environment exists
+if [ ! -d "$VENV_PATH" ]; then
+    echo "❌ Virtual environment not found at $VENV_PATH"
+    echo "Run: python -m venv .venv && source .venv/bin/activate && pip install -r requirements.txt"
+    exit 1
+fi
+
+# Activate virtual environment
+source "$VENV_PATH/bin/activate"
+
+# Default to chat command if not specified
+COMMAND="${2:-chat}"
+
+# Parse agent name or show help
+case "${1:-help}" in
+    todoist|t)
+        echo "🚀 Launching Todoist Agent (Anthropic Claude Sonnet 4)..."
+        python -m core.main "$COMMAND" --agent-name todoist
+        ;;
+    todoist-openai|to)
+        echo "🚀 Launching Todoist Agent (OpenAI GPT-4o-mini)..."
+        python -m core.main "$COMMAND" --agent-name todoist_openai
+        ;;
+    coder|c)
+        echo "🚀 Launching Coder Agent (Anthropic Claude Sonnet 4)..."
+        python -m core.main "$COMMAND" --agent-name coder
+        ;;
+    help|--help|-h)
+        cat << 'EOF'
+╔═══════════════════════════════════════════════════════════╗
+║              Synapse AI Agent Launcher                    ║
+╚═══════════════════════════════════════════════════════════╝
+
+Usage: ./synapse [agent] [command]
+
+Available Agents:
+  todoist, t          Todoist GTD Assistant (Claude Sonnet 4)
+  todoist-openai, to  Todoist GTD Assistant (GPT-4o-mini)
+  coder, c            Software Development Agent (Claude Sonnet 4)
+
+Available Commands:
+  chat                Interactive chat session (default)
+  run                 Autonomous goal execution
+
+Examples:
+  ./synapse todoist              # Launch Todoist agent (Claude)
+  ./synapse to                   # Launch Todoist agent (OpenAI)
+  ./synapse coder                # Launch Coder agent
+  ./synapse t chat               # Explicit chat command
+  ./synapse c run "fix bug"      # Autonomous run command
+
+Shortcuts:
+  t   = todoist
+  to  = todoist-openai
+  c   = coder
+
+Environment:
+  Virtual env: .venv/
+  Config dir:  agents/
+  Knowledge:   knowledge/
+
+For more info: https://github.com/anthropics/claude-code
+EOF
+        ;;
+    *)
+        echo "❌ Unknown agent: $1"
+        echo "Run: ./synapse help"
+        exit 1
+        ;;
+esac
