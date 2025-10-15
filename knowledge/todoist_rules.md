@@ -2,7 +2,7 @@
 
 **Purpose:** This file stores learned preferences and patterns discovered through conversations.
 **Maintained by:** TodoistAgent (updated with user approval)
-**Last updated:** 2025-10-15 2025-10-15 2025-10-15 2025-10-15 2025-10-15 2025-10-15 2025-10-15 2025-10-15 2025-10-15
+**Last updated:** 2025-10-15 2025-10-15 2025-10-15 2025-10-15 2025-10-15 2025-10-15 2025-10-15 2025-10-15 2025-10-15 2025-10-15
 
 ---
 
@@ -219,3 +219,9 @@ Tags must not contain spaces.
 - All rules in this file have been approved by the user
 - Rules are applied consistently once learned
 - User can manually edit this file to refine rules
+
+## Processing Rules
+
+When the user mentions 'all tasks,' it refers specifically to tasks that are not completed unless stated otherwise.
+
+---
