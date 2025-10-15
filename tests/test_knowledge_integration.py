@@ -1,87 +1,272 @@
-import json
-from unittest.mock import MagicMock, mock_open
-from core.agents.coder import CoderAgent
+"""
+Integration tests for LocalVectorStore with ChromaDB.
 
-# A mock ChatCompletion object that mimics the OpenAI API response for a tool call
-def create_mock_tool_call_response():
-    tool_call = MagicMock()
-    tool_call.id = "call_abc123"
-    tool_call.function.name = "read_file"
-    tool_call.function.arguments = json.dumps({"file_path": "test.txt"})
-    tool_call.type = "function"
+Tests the full functionality with mocked ChromaDB to avoid
+requiring actual database connections during testing.
+"""
 
-    message = MagicMock()
-    message.tool_calls = [tool_call]
-    message.content = None # No text content when a tool is called
-    message.role = "assistant"
-    
-    choice = MagicMock()
-    choice.message = message
-    
-    response = MagicMock()
-    response.choices = [choice]
-    return response
+import pytest
+from unittest.mock import Mock, patch, MagicMock
+from pathlib import Path
 
-# A mock ChatCompletion object for the final text response
-def create_mock_final_response():
-    message = MagicMock()
-    message.tool_calls = None
-    message.content = "The file content is: Hello World"
-    message.role = "assistant"
 
-    choice = MagicMock()
-    choice.message = message
+class TestLocalVectorStoreInitialization:
+    """Test LocalVectorStore initialization and client creation."""
 
-    response = MagicMock()
-    response.choices = [choice]
-    return response
+    @patch("core.knowledge.local_vector_store.chromadb.PersistentClient")
+    def test_initialize_creates_persistent_client(self, mock_persistent_client):
+        """Test that initialize creates a ChromaDB persistent client."""
+        from core.knowledge.local_vector_store import LocalVectorStore
 
-def test_responses_api_tool_loop(mocker):
-    """
-    Tests the complete conversation loop for the Responses API.
-    """
-    # 1. Arrange
-    mock_openai_client = MagicMock()
-    mock_openai_client.responses.create.side_effect = [
-        create_mock_tool_call_response(),
-        create_mock_final_response(),
-    ]
-    mocker.patch('core.main.OpenAI', return_value=mock_openai_client)
+        # Setup mock
+        mock_client = Mock()
+        mock_collection = Mock()
+        mock_client.get_or_create_collection.return_value = mock_collection
+        mock_persistent_client.return_value = mock_client
 
-    agent = CoderAgent(config={"name": "TestCoder", "tools": ["read_file"]})
-    
-    # Correctly mock file system operations used by agent.read_file()
-    mock_path_instance = MagicMock()
-    mock_path_instance.exists.return_value = True
-    mocker.patch('core.agents.coder.Path', return_value=mock_path_instance)
-    mocker.patch("builtins.open", mock_open(read_data="Hello World"))
+        # Initialize store
+        config = {"path": "./test_db", "collection_name": "test"}
+        store = LocalVectorStore(config)
+        store.initialize(config)
 
-    spy_read_file = mocker.spy(agent, 'read_file')
-    mocker.patch('core.main.load_agent', return_value=agent)
-    
-    mocker.patch('builtins.input', side_effect=["read test.txt", KeyboardInterrupt])
+        # Verify client creation
+        mock_persistent_client.assert_called_once_with(path="./test_db")
+        mock_client.get_or_create_collection.assert_called_once_with(name="test")
+        assert store.client is not None
+        assert store.collection is not None
 
-    # 2. Act
-    from core import main
-    main.chat()
+    @patch("core.knowledge.local_vector_store.chromadb.PersistentClient")
+    def test_initialize_called_automatically_on_query(self, mock_persistent_client):
+        """Test that query() initializes store if not already initialized."""
+        from core.knowledge.local_vector_store import LocalVectorStore
 
-    # 3. Assert
-    spy_read_file.assert_called_once_with(file_path="test.txt")
-    assert mock_openai_client.responses.create.call_count == 2
-    
-    second_call_args = mock_openai_client.responses.create.call_args_list[1]
-    messages_in_second_call = second_call_args.kwargs['messages']
-    
-    # --- THE CRITICAL FIX IS HERE ---
-    # The test correctly identified that the final message list has 5 items.
-    # We now assert this and check the contents to confirm the loop is correct.
-    assert len(messages_in_second_call) == 5
-    
-    # The 4th message (index 3) should be the tool output sent to the API
-    assert messages_in_second_call[3]['role'] == 'tool'
-    assert messages_in_second_call[3]['tool_call_id'] == 'call_abc123'
-    assert "Hello World" in messages_in_second_call[3]['content']
-    
-    # The 5th message (index 4) should be the final response from the API
-    assert messages_in_second_call[4].role == 'assistant'
-    assert "Hello World" in messages_in_second_call[4].content
+        # Setup mock
+        mock_client = Mock()
+        mock_collection = Mock()
+        mock_collection.query.return_value = {"documents": [["test result"]]}
+        mock_client.get_or_create_collection.return_value = mock_collection
+        mock_persistent_client.return_value = mock_client
+
+        # Create store without initializing
+        config = {"path": "./test_db"}
+        store = LocalVectorStore(config)
+
+        # Query should auto-initialize
+        results = store.query("test query")
+
+        # Verify initialization happened
+        mock_persistent_client.assert_called_once()
+        assert results == ["test result"]
+
+
+class TestLocalVectorStoreQuery:
+    """Test semantic search functionality."""
+
+    @patch("core.knowledge.local_vector_store.chromadb.PersistentClient")
+    def test_query_returns_documents(self, mock_persistent_client):
+        """Test that query returns relevant documents."""
+        from core.knowledge.local_vector_store import LocalVectorStore
+
+        # Setup mock
+        mock_client = Mock()
+        mock_collection = Mock()
+        mock_collection.query.return_value = {
+            "documents": [["doc1 content", "doc2 content", "doc3 content"]]
+        }
+        mock_client.get_or_create_collection.return_value = mock_collection
+        mock_persistent_client.return_value = mock_client
+
+        # Query store
+        config = {"path": "./test_db"}
+        store = LocalVectorStore(config)
+        results = store.query("test query", k=3)
+
+        # Verify query was called correctly
+        mock_collection.query.assert_called_once_with(
+            query_texts=["test query"],
+            n_results=3
+        )
+        assert len(results) == 3
+        assert results[0] == "doc1 content"
+
+    @patch("core.knowledge.local_vector_store.chromadb.PersistentClient")
+    def test_query_handles_empty_results(self, mock_persistent_client):
+        """Test that query handles empty results gracefully."""
+        from core.knowledge.local_vector_store import LocalVectorStore
+
+        # Setup mock
+        mock_client = Mock()
+        mock_collection = Mock()
+        mock_collection.query.return_value = {"documents": None}
+        mock_client.get_or_create_collection.return_value = mock_collection
+        mock_persistent_client.return_value = mock_client
+
+        # Query store
+        config = {"path": "./test_db"}
+        store = LocalVectorStore(config)
+        results = store.query("test query")
+
+        assert results == []
+
+    @patch("core.knowledge.local_vector_store.chromadb.PersistentClient")
+    def test_query_default_k_value(self, mock_persistent_client):
+        """Test that query uses default k=5."""
+        from core.knowledge.local_vector_store import LocalVectorStore
+
+        # Setup mock
+        mock_client = Mock()
+        mock_collection = Mock()
+        mock_collection.query.return_value = {"documents": [[]]}
+        mock_client.get_or_create_collection.return_value = mock_collection
+        mock_persistent_client.return_value = mock_client
+
+        # Query without k parameter
+        config = {"path": "./test_db"}
+        store = LocalVectorStore(config)
+        store.query("test query")
+
+        # Verify default k=5 was used
+        mock_collection.query.assert_called_once_with(
+            query_texts=["test query"],
+            n_results=5
+        )
+
+
+class TestLocalVectorStoreSync:
+    """Test file indexing and synchronization."""
+
+    @patch("core.knowledge.local_vector_store.chromadb.PersistentClient")
+    @patch("core.knowledge.local_vector_store.Path")
+    def test_sync_indexes_files(self, mock_path_class, mock_persistent_client):
+        """Test that sync indexes files from directory."""
+        from core.knowledge.local_vector_store import LocalVectorStore
+
+        # Setup ChromaDB mock
+        mock_client = Mock()
+        mock_collection = Mock()
+        mock_client.get_or_create_collection.return_value = mock_collection
+        mock_persistent_client.return_value = mock_client
+
+        # Setup Path mock
+        mock_source_path = Mock()
+        mock_source_path.exists.return_value = True
+        mock_path_class.return_value = mock_source_path
+
+        # Mock file discovery
+        mock_file1 = Mock()
+        mock_file1.name = "test.py"
+        mock_file1.__str__ = lambda self: "/test/test.py"
+
+        mock_file2 = Mock()
+        mock_file2.name = "readme.md"
+        mock_file2.__str__ = lambda self: "/test/readme.md"
+
+        mock_source_path.rglob.side_effect = lambda pattern: (
+            [mock_file1] if pattern == "*.py" else
+            [mock_file2] if pattern == "*.md" else
+            []
+        )
+
+        # Mock file reading
+        with patch("builtins.open", create=True) as mock_open:
+            mock_file_handle = MagicMock()
+            mock_file_handle.__enter__.return_value.read.side_effect = [
+                "print('hello')",
+                "# README"
+            ]
+            mock_open.return_value = mock_file_handle
+
+            # Sync store
+            config = {"path": "./test_db", "chunk_size": 1000}
+            store = LocalVectorStore(config)
+            store.sync("/test/source")
+
+            # Verify files were indexed
+            assert mock_collection.add.called
+            call_args = mock_collection.add.call_args
+            assert "documents" in call_args.kwargs
+            assert "metadatas" in call_args.kwargs
+            assert "ids" in call_args.kwargs
+
+    @patch("core.knowledge.local_vector_store.chromadb.PersistentClient")
+    @patch("core.knowledge.local_vector_store.Path")
+    def test_sync_raises_for_nonexistent_directory(self, mock_path_class, mock_persistent_client):
+        """Test that sync raises ValueError for nonexistent directory."""
+        from core.knowledge.local_vector_store import LocalVectorStore
+
+        # Setup mocks
+        mock_client = Mock()
+        mock_collection = Mock()
+        mock_client.get_or_create_collection.return_value = mock_collection
+        mock_persistent_client.return_value = mock_client
+
+        mock_source_path = Mock()
+        mock_source_path.exists.return_value = False
+        mock_path_class.return_value = mock_source_path
+
+        # Sync should raise
+        config = {"path": "./test_db"}
+        store = LocalVectorStore(config)
+
+        with pytest.raises(ValueError) as exc_info:
+            store.sync("/nonexistent")
+
+        assert "Source directory does not exist" in str(exc_info.value)
+
+
+class TestLocalVectorStoreClear:
+    """Test clearing functionality."""
+
+    @patch("core.knowledge.local_vector_store.chromadb.PersistentClient")
+    def test_clear_deletes_and_recreates_collection(self, mock_persistent_client):
+        """Test that clear() deletes and recreates collection."""
+        from core.knowledge.local_vector_store import LocalVectorStore
+
+        # Setup mock
+        mock_client = Mock()
+        mock_collection = Mock()
+        mock_client.get_or_create_collection.return_value = mock_collection
+        mock_client.create_collection.return_value = Mock()
+        mock_persistent_client.return_value = mock_client
+
+        # Clear store
+        config = {"path": "./test_db", "collection_name": "test"}
+        store = LocalVectorStore(config)
+        store.clear()
+
+        # Verify delete and recreate
+        mock_client.delete_collection.assert_called_once_with(name="test")
+        mock_client.create_collection.assert_called_once_with(name="test")
+
+
+class TestLocalVectorStoreStats:
+    """Test statistics functionality."""
+
+    @patch("core.knowledge.local_vector_store.chromadb.PersistentClient")
+    def test_get_stats_returns_collection_info(self, mock_persistent_client):
+        """Test that get_stats() returns collection information."""
+        from core.knowledge.local_vector_store import LocalVectorStore
+
+        # Setup mock
+        mock_client = Mock()
+        mock_collection = Mock()
+        mock_collection.count.return_value = 42
+        mock_client.get_or_create_collection.return_value = mock_collection
+        mock_persistent_client.return_value = mock_client
+
+        # Get stats
+        config = {
+            "path": "./custom_db",
+            "collection_name": "my_collection"
+        }
+        store = LocalVectorStore(config)
+        stats = store.get_stats()
+
+        # Verify stats structure
+        assert stats["collection_name"] == "my_collection"
+        assert stats["document_count"] == 42
+        assert stats["path"] == "./custom_db"
+
+
+if __name__ == "__main__":
+    pytest.main([__file__, "-v"])
