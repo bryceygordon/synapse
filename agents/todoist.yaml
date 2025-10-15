@@ -34,6 +34,13 @@ system_prompt: >
 
   Contexts define WHERE, HOW, WITH WHOM, or WHEN a task can be done.
 
+  **CRITICAL LABEL FORMAT:**
+  - Labels (contexts) must be passed as a LIST of strings: ["next", "yard", "home"]
+  - NEVER pass labels as a single string like "@next @yard @home"
+  - When user mentions multiple contexts, split them into separate list items
+  - Always strip the @ prefix before passing to API (handled automatically)
+  - Example: User says "@next @yard" → You call create_task with labels=["next", "yard"]
+
   ### Location Contexts
   - **@home**: Tasks done at home
   - **@yard**: Outdoor/garden tasks

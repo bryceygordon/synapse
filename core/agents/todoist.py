@@ -176,7 +176,9 @@ class TodoistAgent(BaseAgent):
             content: The task description/title
             project_name: Project name (e.g., "Processed", "Inbox", "Groceries")
             labels: List of context labels as strings (e.g., ["home", "chore"] or ["test"])
-                   IMPORTANT: Must be a list, not a string! Use ["test"] not "test"
+                   CRITICAL: Must be an array/list, NOT a string!
+                   - Correct: ["next", "yard", "home"]
+                   - WRONG: "@next @yard @home" or "next yard home" or "@[\"yard\", \"chore\"]"
             priority: Priority level 1-4 (1=lowest/none, 4=highest). Default 1.
             due_string: Natural language due date (e.g., "tomorrow", "next Monday", "every friday")
             description: Additional notes/context for the task
@@ -271,16 +273,13 @@ class TodoistAgent(BaseAgent):
         Args:
             project_name: Filter by project name (e.g., "Inbox", "Processed")
             label: Filter by label (e.g., "home", "urgent")
-            filter_query: Advanced Todoist filter query (e.g., "today | overdue")
+            filter_query: Search term to filter tasks by content (searches task content locally after fetching)
             sort_by: Sort tasks by field (options: "created_asc", "created_desc", "priority_asc", "priority_desc")
         """
         try:
             tasks = []
 
-            if filter_query:
-                # Use advanced filter
-                tasks = self._get_tasks_list(filter=filter_query)
-            elif project_name:
+            if project_name:
                 # Filter by project
                 project = self._find_project_by_name(project_name)
                 if not project:
@@ -296,6 +295,14 @@ class TodoistAgent(BaseAgent):
             else:
                 # Get all tasks
                 tasks = self._get_tasks_list()
+
+            # Apply local filtering if filter_query is provided
+            if filter_query and tasks:
+                tasks = [
+                    task for task in tasks
+                    if (filter_query.lower() in task.content.lower() or
+                        any(filter_query.lower() in label.lower() for label in task.labels))
+                ]
 
             if not tasks:
                 return self._success("No tasks found")
@@ -384,6 +391,9 @@ class TodoistAgent(BaseAgent):
             task_id: The ID of the task to update
             content: New task description (optional)
             labels: New labels list (optional, replaces existing)
+                   CRITICAL: Must be an array/list, NOT a string!
+                   - Correct: ["next", "yard", "home"]
+                   - WRONG: "@next @yard @home" or "next yard home" or "@[\"yard\", \"chore\"]"
             priority: New priority 1-4 (optional)
             due_string: New due date (optional, use "no date" to remove)
             description: New description (optional)
