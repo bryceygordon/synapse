@@ -338,7 +338,7 @@ class TodoistAgent(BaseAgent):
             task = self.api.get_task(task_id)
 
             # Complete it
-            self.api.close_task(task_id)
+            self.api.complete_task(task_id)
 
             return self._success(
                 f"Completed task: {task.content}",
@@ -429,7 +429,7 @@ class TodoistAgent(BaseAgent):
                 "priority": task.priority,
                 "due": task.due.string if task.due else None,
                 "url": task.url,
-                "created_at": task.created_at
+                "created_at": str(task.created_at) if task.created_at else None
             }
 
             # Format readable output
@@ -533,7 +533,10 @@ class TodoistAgent(BaseAgent):
                 )
 
             # Move the task
-            task = self.api.move_task(task_id, project_id=project.id)
+            result = self.api.move_task(task_id, project_id=project.id)
+
+            # Get the task to confirm move
+            task = self.api.get_task(task_id)
 
             return self._success(
                 f"Moved task to #{project_name}: {task.content}",
@@ -674,7 +677,7 @@ class TodoistAgent(BaseAgent):
                 comment_info = {
                     "id": comment.id,
                     "content": comment.content,
-                    "posted_at": comment.posted_at
+                    "posted_at": str(comment.posted_at) if comment.posted_at else None
                 }
                 comment_list.append(comment_info)
 
