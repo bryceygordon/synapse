@@ -2,7 +2,7 @@
 
 **Purpose:** This file stores learned preferences and patterns discovered through conversations.
 **Maintained by:** TodoistAgent (updated with user approval)
-**Last updated:** 2025-10-15 2025-10-15 2025-10-15 2025-10-15 2025-10-15 2025-10-15 2025-10-15 2025-10-15 2025-10-15 2025-10-15 2025-10-15
+**Last updated:** 2025-10-15 2025-10-15 2025-10-15 2025-10-15 2025-10-15 2025-10-15 2025-10-15 2025-10-15 2025-10-15 2025-10-15 2025-10-15 2025-10-15
 
 ---
 
@@ -57,6 +57,16 @@ User prefers clean, nested presentation format:
   - Next Action: [description] @next @contexts
 ```
 This is much easier to read than inline format.
+
+When presenting batches for weekly review, use the following format:
+
+**Task X:** [Task Description]
+**Contexts:** [List of contexts]
+**Energy:** [Energy level]
+**Timeframe:** [Timeframe]
+**Next Action:** [Next action] @next  
+
+Separate each task by a new line without any premables or conclusions.
 
 ### Batch Processing Requirement:
 - **NEVER process tasks one at a time** during reviews
