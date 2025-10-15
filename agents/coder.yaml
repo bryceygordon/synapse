@@ -3,7 +3,7 @@
 name: CoderAgent
 class_name: CoderAgent
 provider: anthropic
-model: claude-sonnet-4.5
+model: claude-sonnet-4-20250514
 system_prompt: >
   # ROLE AND GOAL
   You are an expert-level autonomous software development agent named Synapse.

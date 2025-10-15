@@ -80,9 +80,10 @@ def chat(agent_name: str = "coder"):
                 print(f"🛠️  Invoking {len(response.tool_calls)} tool(s)...\n")
 
                 # Add assistant's tool use message to history
+                # Use raw_response.content for provider-specific format
                 messages.append({
                     "role": "assistant",
-                    "content": response.tool_calls  # Provider-specific format
+                    "content": response.raw_response.content
                 })
 
                 # Execute each tool
@@ -208,7 +209,7 @@ def run(goal: str, max_steps: int = 15, agent_name: str = "coder"):
             # Update conversation with tool results
             messages.append({
                 "role": "assistant",
-                "content": response.tool_calls
+                "content": response.raw_response.content
             })
             messages.append({
                 "role": "user",

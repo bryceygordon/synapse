@@ -36,26 +36,53 @@ Synapse is designed to be a foundation for creating specialized AI agents that c
 
 ## Current Status
 
-**Active Development**: Multi-provider refactoring in progress
+**Multi-Platform Refactoring Complete** ✨
 
-- ✅ Core agent architecture established
-- ✅ Dynamic tool schema generation working
-- 🚧 **In Progress**: Provider abstraction layer for multi-platform support
-- 🚧 **In Progress**: Claude/Anthropic integration (primary focus)
-- 🔮 **Planned**: OpenAI provider (parked for future implementation)
-- 🔮 **Planned**: Additional workflow agents (email, tasks, etc.)
+- ✅ Provider abstraction layer implemented
+- ✅ Claude/Anthropic provider fully functional
+- ✅ Pluggable knowledge store system (ChromaDB for file-based agents)
+- ✅ Configuration-driven architecture working
+- ✅ End-to-end testing verified
+- 🔮 **Planned**: OpenAI provider reintegration
+- 🔮 **Planned**: Additional knowledge stores (email, tasks, etc.)
+- 🔮 **Planned**: More workflow agents beyond CoderAgent
 
-## Quick Start (Coming Soon)
+## Quick Start
 
 ```bash
-# Install dependencies
+# Clone the repository
+git clone https://github.com/bryceygordon/synapse.git
+cd synapse
+
+# Create virtual environment and install dependencies
+python -m venv .venv
+source .venv/bin/activate  # On Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 
-# Configure your agent
-nano agents/my_agent.yaml
+# Set up your Anthropic API key
+echo "ANTHROPIC_API_KEY=your-key-here" >> .env
 
-# Run your agent
+# Start a chat session with the CoderAgent
 python -m core.main chat
+
+# Or run autonomous mode with a goal
+python -m core.main run "Create a new Python module with a hello world function"
+```
+
+### Configuration
+
+Edit `agents/coder.yaml` to customize the agent:
+
+```yaml
+name: CoderAgent
+provider: anthropic  # Or 'openai' once implemented
+model: claude-sonnet-4-20250514
+tools:
+  - read_file
+  - write_file
+  - list_files
+  - run_tests
+  - git_commit
 ```
 
 ## Example Use Cases
