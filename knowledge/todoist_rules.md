@@ -2,7 +2,7 @@
 
 **Purpose:** This file stores learned preferences and patterns discovered through conversations.
 **Maintained by:** TodoistAgent (updated with user approval)
-**Last updated:** 2025-10-15 2025-10-15 2025-10-15 2025-10-15 2025-10-15 2025-10-15 2025-10-15 2025-10-15 2025-10-15 2025-10-15 2025-10-15 2025-10-15 2025-10-15 2025-10-15
+**Last updated:** 2025-10-16 2025-10-15 2025-10-15 2025-10-15 2025-10-15 2025-10-15 2025-10-15 2025-10-15 2025-10-15 2025-10-15 2025-10-15 2025-10-15 2025-10-15 2025-10-15 2025-10-15
 
 ---
 
@@ -182,6 +182,8 @@ Separate each task by a new line without any premables or conclusions.
 Tags must follow the format '@word' and cannot contain spaces or multiple '@' symbols in a row. Tags like '@this,@is,@a,@tag' are considered malformed and should be corrected.
 
 Tags must not contain spaces.
+
+When the user mentions a task number followed by 'd', it means to complete that task. For example, '5 d' means complete task 5.
 
 ### Poison/Spray Tasks:
 - Tasks involving poisoning (pavers, spiders, weeds) are @weather dependent

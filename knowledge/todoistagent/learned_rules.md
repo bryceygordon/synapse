@@ -49,31 +49,44 @@ When user requests "weekly review", follow this specific process:
   - "Buy groceries" → Can be its own @next (single simple action)
 
 ### Task Presentation Format
-**NEVER use preambles or conclusions**. Present batches like this:
+**CRITICAL: NO preambles, NO conclusions, NO explanations - ONLY present the tasks.**
 
+WRONG (has preamble):
+"Here are the first five tasks in the Inbox for processing:"
+
+CORRECT (direct presentation):
 **Task 1:** Fix leaking tap
 **Contexts:** @home @maintenance
 **Energy:** @medenergy
 **Duration:** @medium
-**Next Action:** Get wrench from shed @next
+**Next Action:** Get wrench from shed
 
 **Task 2:** Buy paint
 **Contexts:** @bunnings @errand
 **Energy:** @lowenergy
 **Duration:** @medium
-**Next Action:** (This IS the next action) @next
+**Next Action:** (This IS the next action)
 
-(blank line between tasks)
+WRONG (has conclusion):
+"Please review the suggested contexts, energy levels..."
+
+After presenting batch, STOP. Wait for user response.
 
 User responds: "yes" or "change task 2 to @medenergy"
+
+**Task Numbering**: ALWAYS number 1-5 for each batch (not 6-10, 11-15, etc.)
+- First batch: Tasks 1-5
+- Second batch: Tasks 1-5 (renumber!)
+- User says "task 2" = task 2 from current batch shown
 
 ### Processing Batch Operations
 - **NEVER process one task at a time** - always complete entire batch
 - When user approves, execute ALL operations in sequence:
-  - Move all tasks to destination project
-  - Update all labels in one sweep
-  - Create all subtasks
-- Then ask: "Batch complete. Ready for next 5?"
+  - Move all tasks to destination project ("processed")
+  - Update all labels on each task (contexts, energy, duration)
+  - Create subtask for next action with @next label (if not simple task)
+  - For simple tasks (call, buy, email): add @next to main task instead
+- After processing, present next batch immediately (NO "Batch complete" message)
 
 ### Task Categorization Patterns
 Agent should LEARN and INTUIT from user corrections:
