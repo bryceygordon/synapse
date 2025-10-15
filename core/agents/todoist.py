@@ -190,7 +190,11 @@ class TodoistAgent(BaseAgent):
                    - Correct: ["next", "yard", "home"]
                    - WRONG: "@next @yard @home" or "next yard home" or "@[\"yard\", \"chore\"]"
             priority: Priority level 1-4 (1=lowest/none, 4=highest). Default 1.
-            due_string: Natural language due date (e.g., "tomorrow", "next Monday", "every friday")
+            due_string: Due date - MUST be in YYYY-MM-DD format for dates, or natural language for recurring
+                       - Date only (recommended): "2025-11-03"
+                       - Date with time: "2025-11-03 10:00" or "2025-11-03 at 10am"
+                       - Recurring tasks: "every monday", "every 2 weeks", etc.
+                       CRITICAL: For non-recurring tasks, ALWAYS use YYYY-MM-DD format for accuracy
             description: Additional notes/context for the task
             section_name: Section name within the project (optional)
             parent_id: Parent task ID to create a subtask (optional)
@@ -342,15 +346,20 @@ class TodoistAgent(BaseAgent):
                 task_line = f"{i}. {task.content}{labels_str}{due_str}{priority_str}"
                 summary_lines.append(task_line)
 
-                # Only include minimal info for data payload (just ID and content)
+                # Include full task details in data payload for AI processing
                 task_summaries.append({
                     "id": task.id,
-                    "content": task.content
+                    "content": task.content,
+                    "labels": task.labels,  # CRITICAL: Include labels array for AI to detect malformed tags
+                    "priority": task.priority,
+                    "due": task.due.string if task.due else None,
+                    "project_id": task.project_id,
+                    "created_at": str(task.created_at) if task.created_at else None
                 })
 
             return self._success(
                 "\n".join(summary_lines),
-                data={"task_ids": [t.id for t in tasks], "count": len(tasks)}
+                data={"tasks": task_summaries, "task_ids": [t.id for t in tasks], "count": len(tasks)}
             )
 
         except Exception as e:

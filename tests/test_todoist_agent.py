@@ -278,14 +278,16 @@ def test_list_tasks_by_label(agent, mock_todoist_api, mock_task):
 
 
 def test_list_tasks_by_filter(agent, mock_todoist_api, mock_task):
-    """Test listing tasks with advanced filter."""
+    """Test listing tasks with local filter query."""
+    mock_task.content = "test task"  # Ensure task has content for filtering
     mock_todoist_api.get_tasks.return_value = iter([[mock_task]])
 
-    result = agent.list_tasks(filter_query="today | overdue")
+    result = agent.list_tasks(filter_query="test")
 
     data = json.loads(result)
     assert data["status"] == "success"
-    mock_todoist_api.get_tasks.assert_called_with(filter="today | overdue")
+    # filter_query is applied locally after fetching all tasks
+    mock_todoist_api.get_tasks.assert_called_with()
 
 
 def test_list_tasks_empty(agent, mock_todoist_api):
