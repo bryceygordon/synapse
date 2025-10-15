@@ -2,7 +2,7 @@
 
 **Purpose:** This file stores learned preferences and patterns discovered through conversations.
 **Maintained by:** TodoistAgent (updated with user approval)
-**Last updated:** 2025-10-15 2025-10-15 2025-10-15 2025-10-15 2025-10-15 2025-10-15 2025-10-15 2025-10-15 2025-10-15 2025-10-15
+**Last updated:** 2025-10-15 2025-10-15 2025-10-15 2025-10-15 2025-10-15 2025-10-15 2025-10-15 2025-10-15 2025-10-15 2025-10-15 2025-10-15
 
 ---
 
@@ -225,3 +225,5 @@ Tags must not contain spaces.
 When the user mentions 'all tasks,' it refers specifically to tasks that are not completed unless stated otherwise.
 
 ---
+
+Tasks with tags formatted like `@example@tag` are illegal and should be separated into distinct tags such as `@example` and `@tag`.
