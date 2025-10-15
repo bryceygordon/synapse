@@ -175,7 +175,8 @@ class TodoistAgent(BaseAgent):
         Args:
             content: The task description/title
             project_name: Project name (e.g., "Processed", "Inbox", "Groceries")
-            labels: List of context labels (e.g., ["home", "chore"])
+            labels: List of context labels as strings (e.g., ["home", "chore"] or ["test"])
+                   IMPORTANT: Must be a list, not a string! Use ["test"] not "test"
             priority: Priority level 1-4 (1=lowest/none, 4=highest). Default 1.
             due_string: Natural language due date (e.g., "tomorrow", "next Monday", "every friday")
             description: Additional notes/context for the task
@@ -217,6 +218,9 @@ class TodoistAgent(BaseAgent):
 
             # Add labels if provided (remove @ prefix if present)
             if labels:
+                # Handle case where labels is accidentally passed as a string instead of list
+                if isinstance(labels, str):
+                    labels = [labels]
                 clean_labels = [label.lstrip('@') for label in labels]
                 task_data["labels"] = clean_labels
 
@@ -380,6 +384,9 @@ class TodoistAgent(BaseAgent):
                 update_data["content"] = content
 
             if labels is not None:
+                # Handle case where labels is accidentally passed as a string instead of list
+                if isinstance(labels, str):
+                    labels = [labels]
                 clean_labels = [label.lstrip('@') for label in labels]
                 update_data["labels"] = clean_labels
 
