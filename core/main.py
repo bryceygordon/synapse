@@ -70,6 +70,38 @@ def render_assistant_message(text: str, title: str = "[bold green]Assistant[/bol
         ))
 
 
+def display_token_usage(session_tokens: dict, agent_name: str, model: str):
+    """Display comprehensive token usage statistics."""
+    if session_tokens["total"] == 0:
+        return
+
+    # Calculate averages
+    avg_input = session_tokens["input"] / session_tokens["turns"] if session_tokens["turns"] > 0 else 0
+    avg_output = session_tokens["output"] / session_tokens["turns"] if session_tokens["turns"] > 0 else 0
+    avg_total = session_tokens["total"] / session_tokens["turns"] if session_tokens["turns"] > 0 else 0
+
+    # Create usage table
+    table = Table(
+        title="📊 Token Usage Summary",
+        box=box.ROUNDED,
+        show_header=True,
+        header_style="bold cyan"
+    )
+
+    table.add_column("Metric", style="white", no_wrap=True)
+    table.add_column("Session Total", style="yellow", justify="right")
+    table.add_column("Per Turn (avg)", style="dim", justify="right")
+
+    table.add_row("Input Tokens", f"{session_tokens['input']:,}", f"{avg_input:,.1f}")
+    table.add_row("Output Tokens", f"{session_tokens['output']:,}", f"{avg_output:,.1f}")
+    table.add_row("Total Tokens", f"[bold]{session_tokens['total']:,}[/bold]", f"[bold]{avg_total:,.1f}[/bold]")
+    table.add_row("API Calls", f"{session_tokens['turns']}", "-")
+
+    console.print("\n")
+    console.print(table)
+    console.print(f"[dim]Agent: {agent_name} | Model: {model}[/dim]")
+
+
 def display_tool_result(tool_name: str, result: str):
     """Display tool execution result with Rich formatting."""
     try:
@@ -183,6 +215,14 @@ def chat(agent_name: str = "coder"):
     # Conversation state
     messages = []
 
+    # Token usage tracking
+    session_tokens = {
+        "input": 0,
+        "output": 0,
+        "total": 0,
+        "turns": 0
+    }
+
     # For TodoistAgent, trigger startup sequence automatically
     if agent_name.startswith("todoist"):
         console.print("🚀 [bold yellow]Initializing TodoistAgent...[/bold yellow]\n")
@@ -202,6 +242,13 @@ def chat(agent_name: str = "coder"):
                 model=agent.model,
                 tools=tools
             )
+
+            # Track token usage
+            if response.usage:
+                session_tokens["input"] += response.usage.input_tokens
+                session_tokens["output"] += response.usage.output_tokens
+                session_tokens["total"] += response.usage.total_tokens
+                session_tokens["turns"] += 1
 
         # Execute startup tool calls
         if response.tool_calls:
@@ -246,6 +293,13 @@ def chat(agent_name: str = "coder"):
                     tools=tools
                 )
 
+                # Track token usage
+                if response.usage:
+                    session_tokens["input"] += response.usage.input_tokens
+                    session_tokens["output"] += response.usage.output_tokens
+                    session_tokens["total"] += response.usage.total_tokens
+                    session_tokens["turns"] += 1
+
             if response.text:
                 console.print()
                 render_assistant_message(response.text)
@@ -272,6 +326,13 @@ def chat(agent_name: str = "coder"):
                     model=agent.model,
                     tools=tools
                 )
+
+                # Track token usage
+                if response.usage:
+                    session_tokens["input"] += response.usage.input_tokens
+                    session_tokens["output"] += response.usage.output_tokens
+                    session_tokens["total"] += response.usage.total_tokens
+                    session_tokens["turns"] += 1
 
             # Handle tool calls
             if response.tool_calls:
@@ -328,6 +389,13 @@ def chat(agent_name: str = "coder"):
                         tools=tools
                     )
 
+                    # Track token usage
+                    if response.usage:
+                        session_tokens["input"] += response.usage.input_tokens
+                        session_tokens["output"] += response.usage.output_tokens
+                        session_tokens["total"] += response.usage.total_tokens
+                        session_tokens["turns"] += 1
+
             # Display text response if present
             if response.text:
                 console.print()
@@ -335,8 +403,17 @@ def chat(agent_name: str = "coder"):
                 console.print()
                 messages.append({"role": "assistant", "content": response.text})
 
+            # Show token usage for this turn if available
+            if response.usage:
+                console.print(
+                    f"[dim]Tokens: {response.usage.input_tokens} in + {response.usage.output_tokens} out = "
+                    f"{response.usage.total_tokens} total[/dim]"
+                )
+
         except KeyboardInterrupt:
-            console.print("\n\n[yellow]Exiting chat. Goodbye![/yellow]")
+            console.print("\n")
+            display_token_usage(session_tokens, agent.name, agent.model)
+            console.print("\n[yellow]Exiting chat. Goodbye![/yellow]")
             break
         except Exception as e:
             console.print(f"\n[bold red]❌ An error occurred:[/bold red] {e}")

@@ -26,6 +26,21 @@ class ToolCall:
 
 
 @dataclass
+class TokenUsage:
+    """
+    Standardized representation of token usage across providers.
+
+    Attributes:
+        input_tokens: Tokens used for input (prompt, system, messages, tools)
+        output_tokens: Tokens used for output (response text, tool calls)
+        total_tokens: Total tokens used (input + output)
+    """
+    input_tokens: int
+    output_tokens: int
+    total_tokens: int
+
+
+@dataclass
 class ProviderResponse:
     """
     Standardized representation of an AI provider's response.
@@ -35,11 +50,13 @@ class ProviderResponse:
         tool_calls: List of tool calls requested by the AI (if any)
         raw_response: The original response object from the provider
         finish_reason: Why the response ended (e.g., 'stop', 'tool_use', 'length')
+        usage: Token usage information for this request
     """
     text: str | None
     tool_calls: list[ToolCall]
     raw_response: Any
     finish_reason: str
+    usage: TokenUsage | None = None
 
 
 class BaseProvider(ABC):

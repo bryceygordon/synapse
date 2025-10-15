@@ -50,6 +50,7 @@ class TestMessageSending:
         mock_response = Mock()
         mock_response.content = [Mock(type="text", text="Hello from Claude!")]
         mock_response.stop_reason = "end_turn"
+        mock_response.usage = Mock(input_tokens=10, output_tokens=5)
         mock_client.messages.create.return_value = mock_response
 
         response = provider.send_message(
@@ -80,6 +81,7 @@ class TestMessageSending:
         mock_response = Mock()
         mock_response.content = [mock_tool_use]
         mock_response.stop_reason = "tool_use"
+        mock_response.usage = Mock(input_tokens=15, output_tokens=20)
         mock_client.messages.create.return_value = mock_response
 
         response = provider.send_message(
@@ -115,6 +117,7 @@ class TestMessageSending:
         mock_response = Mock()
         mock_response.content = [mock_text, mock_tool]
         mock_response.stop_reason = "tool_use"
+        mock_response.usage = Mock(input_tokens=12, output_tokens=18)
         mock_client.messages.create.return_value = mock_response
 
         response = provider.send_message(
@@ -137,6 +140,7 @@ class TestMessageSending:
         mock_response = Mock()
         mock_response.content = [Mock(type="text", text="Test")]
         mock_response.stop_reason = "end_turn"
+        mock_response.usage = Mock(input_tokens=5, output_tokens=3)
         mock_client.messages.create.return_value = mock_response
 
         provider.send_message(
@@ -296,6 +300,7 @@ class TestIntegration:
         mock_response = Mock()
         mock_response.content = [mock_tool_use]
         mock_response.stop_reason = "tool_use"
+        mock_response.usage = Mock(input_tokens=25, output_tokens=30)
         mock_client.messages.create.return_value = mock_response
 
         # 4. Send message

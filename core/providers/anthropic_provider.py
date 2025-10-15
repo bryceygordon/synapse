@@ -11,7 +11,7 @@ import re
 from typing import get_type_hints, get_origin, get_args, Any
 
 from anthropic import Anthropic
-from core.providers.base_provider import BaseProvider, ToolCall, ProviderResponse
+from core.providers.base_provider import BaseProvider, ToolCall, ProviderResponse, TokenUsage
 
 
 # Type mapping for converting Python types to JSON schema types
@@ -126,11 +126,21 @@ class AnthropicProvider(BaseProvider):
                     )
                 )
 
+        # Extract token usage information
+        usage = None
+        if response.usage:
+            usage = TokenUsage(
+                input_tokens=response.usage.input_tokens,
+                output_tokens=response.usage.output_tokens,
+                total_tokens=response.usage.input_tokens + response.usage.output_tokens
+            )
+
         return ProviderResponse(
             text=text_content,
             tool_calls=tool_calls,
             raw_response=response,
-            finish_reason=response.stop_reason or "unknown"
+            finish_reason=response.stop_reason or "unknown",
+            usage=usage
         )
 
     def format_tool_schemas(self, agent_instance: Any) -> list[dict]:
