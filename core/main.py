@@ -54,6 +54,64 @@ def chat(agent_name: str = "coder"):
     # Conversation state
     messages = []
 
+    # For TodoistAgent, trigger startup sequence automatically
+    if agent_name == "todoist":
+        print("🚀 Initializing TodoistAgent...\n")
+
+        # Send initial startup message
+        messages.append({
+            "role": "user",
+            "content": "Initialize - get current time and load rules"
+        })
+
+        print("🤔 Loading context...", flush=True)
+
+        # Get initial response with startup tools
+        response = provider.send_message(
+            client=client,
+            messages=messages,
+            system_prompt=agent.system_prompt,
+            model=agent.model,
+            tools=tools
+        )
+
+        # Execute startup tool calls
+        if response.tool_calls:
+            print(f"🛠️  Running startup sequence ({len(response.tool_calls)} tool(s))...\n")
+
+            messages.append({
+                "role": "assistant",
+                "content": response.raw_response.content
+            })
+
+            tool_results = []
+            for tool_call in response.tool_calls:
+                print(f"  → {tool_call.name}()")
+                tool_method = getattr(agent, tool_call.name)
+                result = tool_method(**tool_call.arguments)
+                tool_results.append(
+                    provider.format_tool_results(tool_call.id, str(result))
+                )
+
+            messages.append({
+                "role": "user",
+                "content": tool_results
+            })
+
+            # Get greeting
+            print("\n🤔 Preparing greeting...", flush=True)
+            response = provider.send_message(
+                client=client,
+                messages=messages,
+                system_prompt=agent.system_prompt,
+                model=agent.model,
+                tools=tools
+            )
+
+            if response.text:
+                print(f"\n{response.text}\n")
+                messages.append({"role": "assistant", "content": response.text})
+
     while True:
         try:
             # Get user input
