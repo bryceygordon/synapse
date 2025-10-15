@@ -241,10 +241,10 @@ def chat(agent_name: str = "coder"):
     if agent_name.startswith("todoist"):
         console.print("🚀 [bold yellow]Initializing TodoistAgent...[/bold yellow]\n")
 
-        # Send initial startup message
+        # Send initial startup message (Just-In-Time architecture: AI loads knowledge on-demand)
         messages.append({
             "role": "user",
-            "content": "Initialize - get current time and load rules"
+            "content": "Initialize - get current time"
         })
 
         with console.status("[bold green]Loading context...", spinner="dots"):

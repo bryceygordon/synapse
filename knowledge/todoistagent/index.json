@@ -1,0 +1,36 @@
+{
+  "description": "Just-In-Time knowledge base for TodoistAgent",
+  "topics": {
+    "project_structure": {
+      "file": "project_structure.md",
+      "description": "How projects work as workflow states",
+      "tokens_approx": 400
+    },
+    "context_labels": {
+      "file": "context_labels.md",
+      "description": "All available context labels and their meanings",
+      "tokens_approx": 800
+    },
+    "processing_rules": {
+      "file": "processing_rules.md",
+      "description": "Inbox processing decision tree and GTD clarify phase",
+      "tokens_approx": 600
+    },
+    "date_syntax": {
+      "file": "date_syntax.md",
+      "description": "Todoist date format reference and calculation process",
+      "tokens_approx": 500
+    },
+    "label_fixing": {
+      "file": "label_fixing.md",
+      "description": "Procedures for fixing illegal/malformed labels",
+      "tokens_approx": 300
+    },
+    "learned_rules": {
+      "file": "learned_rules.md",
+      "description": "User-approved learned preferences and patterns",
+      "tokens_approx": 1000
+    }
+  },
+  "usage_note": "Query topics on-demand using query_knowledge(topic) to minimize token usage"
+}
