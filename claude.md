@@ -192,6 +192,19 @@ Synapse uses **Rich** library for gorgeous terminal output:
 - 📦 **Panels** - Assistant responses framed in elegant panels
 - ⏳ **Animated Spinners** - Smooth "Thinking..." animations instead of static text
 - 🎯 **Color-coded Tool Calls** - Easy-to-read tool invocations with argument highlighting
+- 📝 **Markdown Rendering** - Agent responses with markdown automatically rendered beautifully
+
+**Markdown Support:**
+Assistant responses that contain markdown are automatically rendered with Rich's Markdown renderer:
+- **Headers** (# ## ###) - Styled with boxes and emphasis
+- **Code blocks** (```language) - Formatted with proper indentation
+- **Lists** (-, *, 1.) - Bullet points and numbered lists
+- **Bold** (**text**) and *italic* (*text*) - Terminal-styled emphasis
+- **Inline code** (`code`) - Highlighted inline code snippets
+- **Blockquotes** (>) - Indented with visual indicator
+- **Horizontal rules** (---) - Visual separators
+
+Plain text responses (no markdown) render as simple text panels for speed.
 
 **Task List Display:**
 When TodoistAgent returns task lists, they're automatically displayed as Rich tables with:
@@ -334,6 +347,22 @@ print(f"Success: {result}")
 
 **For New Features:**
 When adding new CLI output, always use Rich formatting from the start. Check `core/main.py`'s `display_tool_result()` function for examples.
+
+**Markdown Rendering:**
+Assistant text responses are automatically rendered with markdown support via `render_assistant_message()`:
+- Detects markdown patterns (headers, code blocks, lists, bold, italic, etc.)
+- Renders with Rich's `Markdown()` if markdown detected
+- Falls back to plain text Panel for speed if no markdown
+- All responses maintain consistent green Panel styling with ROUNDED borders
+
+**Example Usage:**
+```python
+# In main.py - already implemented in all response locations
+render_assistant_message(response.text)  # Auto-detects and renders markdown
+
+# With custom title
+render_assistant_message(response.text, title="[bold green]✅ Final Response[/bold green]")
+```
 
 ### Testing Requirements (MANDATORY)
 

@@ -26,6 +26,50 @@ console = Console()
 app = typer.Typer(help="A modular, command-line-first AI orchestration engine.")
 
 
+def render_assistant_message(text: str, title: str = "[bold green]Assistant[/bold green]") -> None:
+    """
+    Render assistant message with markdown support if detected.
+
+    Automatically detects markdown patterns and renders them beautifully
+    using Rich's Markdown renderer. Falls back to plain text if no markdown.
+
+    Args:
+        text: The assistant's message text
+        title: Panel title (default: "[bold green]Assistant[/bold green]")
+    """
+    # Simple markdown detection heuristic
+    has_markdown = any([
+        '\n#' in text or text.startswith('#'),     # Headers
+        '```' in text,                              # Code blocks
+        '\n- ' in text or text.startswith('- '),   # Unordered lists
+        '\n* ' in text or text.startswith('* '),   # Unordered lists
+        '\n+ ' in text or text.startswith('+ '),   # Unordered lists
+        '\n1. ' in text or text.startswith('1. '), # Numbered lists
+        '**' in text,                               # Bold
+        '__' in text,                               # Bold
+        text.count('`') >= 2,                       # Inline code
+        '\n> ' in text or text.startswith('> '),   # Blockquotes
+        '---' in text or '___' in text,             # Horizontal rules
+    ])
+
+    if has_markdown:
+        # Render as markdown with syntax highlighting
+        console.print(Panel(
+            Markdown(text),
+            title=title,
+            border_style="green",
+            box=box.ROUNDED
+        ))
+    else:
+        # Render as plain text (faster for simple responses)
+        console.print(Panel(
+            text,
+            title=title,
+            border_style="green",
+            box=box.ROUNDED
+        ))
+
+
 def display_tool_result(tool_name: str, result: str):
     """Display tool execution result with Rich formatting."""
     try:
@@ -190,12 +234,7 @@ def chat(agent_name: str = "coder"):
 
             if response.text:
                 console.print()
-                console.print(Panel(
-                    response.text,
-                    title="[bold green]Assistant[/bold green]",
-                    border_style="green",
-                    box=box.ROUNDED
-                ))
+                render_assistant_message(response.text)
                 console.print()
                 messages.append({"role": "assistant", "content": response.text})
 
@@ -268,12 +307,7 @@ def chat(agent_name: str = "coder"):
             # Display text response if present
             if response.text:
                 console.print()
-                console.print(Panel(
-                    response.text,
-                    title="[bold green]Assistant[/bold green]",
-                    border_style="green",
-                    box=box.ROUNDED
-                ))
+                render_assistant_message(response.text)
                 console.print()
                 messages.append({"role": "assistant", "content": response.text})
 
@@ -340,12 +374,7 @@ def run(goal: str, max_steps: int = 15, agent_name: str = "coder"):
             # If no tool calls, agent is done
             if not response.tool_calls:
                 if response.text:
-                    console.print(Panel(
-                        response.text,
-                        title="[bold green]✅ Final Response[/bold green]",
-                        border_style="green",
-                        box=box.ROUNDED
-                    ))
+                    render_assistant_message(response.text, title="[bold green]✅ Final Response[/bold green]")
                 console.print("\n[bold green]✅ Run Finished:[/bold green] [dim]Goal achieved or no further tools needed.[/dim]")
                 break
 
