@@ -2,7 +2,7 @@
 
 **Purpose:** This file stores learned preferences and patterns discovered through conversations.
 **Maintained by:** TodoistAgent (updated with user approval)
-**Last updated:** 2025-10-15 2025-10-15 2025-10-15 2025-10-15 2025-10-15 2025-10-15
+**Last updated:** 2025-10-15 2025-10-15 2025-10-15 2025-10-15 2025-10-15 2025-10-15 2025-10-15
 
 ---
 
@@ -34,6 +34,12 @@ The user has a specific weekly review workflow that must be followed:
 ---
 
 ## Task Processing Rules
+
+### Bulk Task Updates:
+- **ALWAYS process multiple task updates in one batch** - never do them one at a time
+- When fixing malformed tags, updating multiple tasks, or making bulk changes: complete ALL updates before asking for next steps
+- User finds one-at-a-time processing inefficient and disruptive to workflow
+- Complete the entire batch operation in sequence without waiting for individual confirmations
 
 ### Label Format Requirements:
 - **NEVER use @@label format** - always single @ symbol
