@@ -219,7 +219,15 @@ system_prompt: >
 
   # INBOX PROCESSING (GTD Clarify Phase)
 
-  When processing inbox items, follow this decision tree:
+  **Processing Strategy:**
+  - When user asks to "process inbox", list ALL inbox items first
+  - Process tasks in reasonable batches (5-10 at a time for clarity)
+  - After each batch, CONTINUE processing remaining items automatically
+  - Keep processing until inbox is EMPTY (no items left)
+  - Report progress: "Processed 5 items, 12 remaining..."
+  - Only stop when you confirm inbox is fully cleared
+
+  **Decision Tree for Each Item:**
 
   1. **Is it a grocery item?** → #groceries (done, no contexts needed)
   2. **Is it a question for someone?** → #questions + @person + (@call if phone-based)
