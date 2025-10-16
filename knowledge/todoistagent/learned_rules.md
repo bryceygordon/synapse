@@ -15,17 +15,18 @@ When user requests "weekly review", follow this specific process:
 6. **Planning Session** (schedule @next tasks into specific days)
 
 ### Inbox Processing
+
 - Present items in **batches of 5 or less**
 - For each batch, INTUIT and suggest:
   - Project destination (usually "processed")
   - Location contexts (@home, @yard, @house, etc.)
   - Activity contexts (@chore, @maintenance, @errand, etc.)
+  - **Verbal Expressiveness**: Convert verbose task entries into concise actions and use additional notes/description for context.
   - Energy level (@lowenergy, @medenergy, @highenergy)
   - Duration (@short, @medium, @long)
   - Next action (what's the immediate physical action?)
-- User responds: "yes"/"go ahead" or specifies changes
-- NO preamble, NO summary - just present batch and suggestions
-- Once approved, process ALL tasks in batch before moving to next batch
+    - If the task is a multi-step job, create subtasks for each step with a subtask marked @next.
+    - If the task is short and simple, the task itself should have the @next label.
 
 ### Processed Review
 - List tasks oldest → newest
@@ -150,6 +151,36 @@ When you notice a pattern in how the user categorizes tasks:
 ### Task Management Preferences
 - **Default Task Entry:** User typically adds new items directly into the "Inbox" for processing later.
 
+### Autonomous Execution Preference (CRITICAL)
+- **User values autonomous execution** - DO NOT create stop-start interactions
+- Execute clear, unambiguous commands IMMEDIATELY without asking permission
+- Commands like "move all tasks from X to Y" should:
+  1. Fetch the tasks
+  2. Move them (using batch_move_tasks if multiple)
+  3. Report results
+  - NO intermediate "I found 15 tasks, should I proceed?" steps
+- Only ask for clarification when genuinely ambiguous or destructive (>20 deletions)
+- Weekly review is DIFFERENT - that's interactive by design (user approves batches)
+- Simple operations (move, update, complete) are NOT interactive - execute immediately
+
+### Criteria Verification Preference
+- When checking for tasks that don't meet specific criteria:
+  - First, look for a definition of the criteria in the knowledge base.
+  - If no definition is found, confirm the criteria details with the user before proceeding.
+
+### Preference for Rule Categorization
+- Always review existing categories to ensure a best fit before creating new ones for rules.
+
+### Rule for Verbose Task Entry
+1. **Task Identification**: Intuit the core action and simplify it into a concise task name.
+   - Example: "Clean fridge"
+2. **Subtask Creation**: Identify any additional actionable items and create subtasks if needed.
+   - Example: "Find spare towels in cupboard" marked with @next.
+3. **Description Addition**: Place further context or details into the task description.
+   - Example: "Clean fridge out before grandparents come over."
+4. **Labeling**: Apply all relevant labels as inferred from task content.
+   - For instance, energy level, location, and activity type.
+
 ### Location Patterns
 - Which tasks typically go to which locations
 - When to use @house vs @home vs @yard
@@ -175,3 +206,82 @@ When you notice a pattern in how the user categorizes tasks:
 - All patterns must be approved by user before saving
 - Agent should proactively recognize patterns and ask to save them
 - Helps reduce token usage by eliminating repeated explanations
+
+## Processing Tasks
+
+- Present tasks for processing in quantities that make sense based on complexity. 
+  - More complex tasks might require more conversation and can be handled one at a time.
+
+- For each task, INTUIT and suggest:
+  - Project destination (usually "#processed")
+  - Location contexts (@home, @yard, @house, etc.)
+  - Activity contexts (@chore, @maintenance, @errand, etc.)
+  - **Verbal Expressiveness**: Convert verbose task entries into concise actions and use additional notes/description for context.
+  - Energy level (@lowenergy, @medenergy, @highenergy)
+  - Duration (@short, @medium, @long)
+  - Next action (what's the immediate physical action?)
+    - If the task is a multi-step job, intuit possible steps and pick one as the next action.
+    - Create subtasks for each step, choosing one to mark with @next.
+    - If the task is short and simple, the task itself should have the @next label.
+
+- Once all the criteria have been met, the task is considered processed and can be moved into an appropriate project, usually "#processed".
+
+- **All tasks in any projects other than the Inbox** must meet these criteria. 
+  - For tasks lacking attributes or detail, highlight and ask whether to move back to the inbox or correct it.
+  - Intuit the correct form of the processed task and present it for your approval. 
+  - Engage in conversation as needed to ensure task clarity and accuracy.
+
+
+## Definitions and Standards
+
+### Example of a Processed Task
+- **Task Content:** Buy groceries for dinner
+- **Project Destination:** #processed
+- **Location Contexts:** @shopping
+- **Activity Contexts:** @errand
+- **Energy Level:** @lowenergy
+- **Duration:** @short
+- **Next Action:** Create list of items needed @next
+
+### Example of an Unprocessed Task
+- **Task Content:** Go shopping
+- **Missing Information:**
+  - No context for what type of shopping (e.g., groceries, clothes)
+  - No energy level assigned
+  - No duration estimated
+  - No clear project destination
+  - No next action specified
+
+- **Note:** If a task is missing any of these critical elements, it should be considered unprocessed and require further refinement.
+
+### Example of a Processed Task
+- **Task Content:** Buy groceries for dinner
+- **Project Destination:** #processed
+- **Location Contexts:** @shopping
+- **Activity Contexts:** @errand
+- **Energy Level:** @lowenergy
+- **Duration:** @short
+- **Next Action:** Create list of items needed @next
+
+### Example of an Unprocessed Task
+- **Task Content:** Go shopping
+- **Missing Information:**
+  - No context for what type of shopping (e.g., groceries, clothes)
+  - No energy level assigned
+  - No duration estimated
+  - No clear project destination
+  - No next action specified
+
+### Processed Task Definition
+- A processed task is one that meets all the criteria outlined in the processing tasks rule.
+- This includes:
+  - Assigned project destination
+  - Appropriate location contexts
+  - Relevant activity contexts
+  - Concise task action and additional notes/description for context
+  - Correct energy level
+  - Estimated duration
+  - Clearly defined next action, with subtasks as necessary
+- Once all criteria are met, the task can be moved to an appropriate project, usually "#processed."
+
+---
