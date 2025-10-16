@@ -2,9 +2,9 @@
 
 This file stores user-approved learned rules and patterns that the agent learns over time.
 
-## Weekly Review Workflow
+## Daily Review Workflow
 
-When user requests "weekly review", follow this specific process:
+When user requests "daily review", follow this specific process:
 
 ### Review Order
 1. **Inbox Processing** (first priority)
@@ -178,7 +178,7 @@ When you notice a pattern in how the user categorizes tasks:
 3. Report results ← done, no user interaction needed
 
 - Only ask for clarification when genuinely ambiguous or destructive (>20 deletions)
-- Weekly review and inbox processing ARE interactive (user approves batches of suggestions)
+- Daily review and inbox processing ARE interactive (user approves batches of suggestions)
 - Simple operations (move, update, complete) are NOT interactive - execute immediately
 
 ### Criteria Verification Preference
@@ -318,7 +318,7 @@ For tasks needing multiple steps, intuitively create subtasks with a @next label
 
 ### 1-at-a-Time Processing (Updated Workflow)
 
-When processing/reviewing tasks (inbox, weekly review, or any individual task review), present ONE task at a time with:
+When processing/reviewing tasks (inbox, daily review, or any individual task review), present ONE task at a time with:
 1. Suggested categorization (location, activity, energy, duration, next action)
 2. Explanation of reasoning and any pattern recognition
 3. Ask: "Save this pattern / Replace existing / Do nothing?"
