@@ -1669,6 +1669,85 @@ class TodoistAgent(BaseAgent):
         except Exception as e:
             return self._error("TodoistAPIError", f"Failed to list next actions: {str(e)}")
 
+    def find_tasks_without_next_actions(self) -> str:
+        """
+        Find all tasks in processed project that lack a next action.
+
+        A task is considered to lack a next action if:
+        1. It has NO subtasks AND does NOT have @next label, OR
+        2. It has subtasks BUT no subtask has @next label
+
+        Returns:
+            JSON with list of tasks needing next actions
+        """
+        try:
+            # Get all tasks in processed project
+            processed_project = self._find_project_by_name("processed")
+            if not processed_project:
+                return self._error(
+                    "ProjectNotFound",
+                    f"Project 'processed' not found. Available projects: "
+                    f"{', '.join(p.name for p in self._get_projects())}"
+                )
+
+            all_tasks = self._get_tasks_list(project_id=processed_project.id)
+
+            # Separate parent tasks from subtasks
+            parent_tasks = [t for t in all_tasks if not t.parent_id]
+            subtasks_by_parent = {}
+            for task in all_tasks:
+                if task.parent_id:
+                    if task.parent_id not in subtasks_by_parent:
+                        subtasks_by_parent[task.parent_id] = []
+                    subtasks_by_parent[task.parent_id].append(task)
+
+            # Find tasks without next actions
+            tasks_without_next = []
+
+            for task in parent_tasks:
+                has_next_action = False
+
+                # Check if task itself has @next label
+                if "next" in task.labels:
+                    has_next_action = True
+                else:
+                    # Check if any subtask has @next label
+                    if task.id in subtasks_by_parent:
+                        for subtask in subtasks_by_parent[task.id]:
+                            if "next" in subtask.labels:
+                                has_next_action = True
+                                break
+
+                if not has_next_action:
+                    tasks_without_next.append({
+                        "id": task.id,
+                        "content": task.content,
+                        "labels": task.labels,
+                        "has_subtasks": task.id in subtasks_by_parent,
+                        "subtask_count": len(subtasks_by_parent.get(task.id, []))
+                    })
+
+            if not tasks_without_next:
+                return self._success(
+                    "✓ All tasks in processed have next actions",
+                    data={"count": 0, "tasks": []}
+                )
+
+            # Format summary
+            summary_lines = [f"⚠️  Found {len(tasks_without_next)} task(s) without next actions:\n"]
+            for i, task_info in enumerate(tasks_without_next, 1):
+                labels_str = f" [{', '.join('@' + l for l in task_info['labels'])}]" if task_info['labels'] else ""
+                subtask_info = f" ({task_info['subtask_count']} subtasks)" if task_info['has_subtasks'] else ""
+                summary_lines.append(f"{i}. {task_info['content']}{labels_str}{subtask_info}")
+
+            return self._success(
+                "\n".join(summary_lines),
+                data={"count": len(tasks_without_next), "tasks": tasks_without_next}
+            )
+
+        except Exception as e:
+            return self._error("TodoistAPIError", f"Failed to find tasks without next actions: {str(e)}")
+
     def schedule_task(self, task_id: str, date: str) -> str:
         """
         Schedule a processed task for a specific day (planning).
