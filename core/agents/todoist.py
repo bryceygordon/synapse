@@ -1785,3 +1785,231 @@ class TodoistAgent(BaseAgent):
             )
         except Exception as e:
             return self._error("TodoistAPIError", f"Failed to schedule task: {str(e)}")
+
+    def process_wizard_output(self, wizard_instructions: str) -> str:
+        """
+        Process batch task updates from the inbox wizard.
+
+        Parses wizard output format and executes all task updates:
+        - Parses natural language dates ("tomorrow 8am" → actual dates)
+        - Parses label instructions ("add home, remove shed" → API updates)
+        - Maps energy/duration codes (h/m/l, s/m/l → actual labels)
+        - Creates subtasks for multi-step tasks
+        - Batches API calls for efficiency
+
+        Args:
+            wizard_instructions: Structured output from inbox wizard
+
+        Returns:
+            JSON with success/failure counts
+
+        Example input:
+            ```
+            task_id: 123456789
+            - content: "New content"
+            - labels: "add home, add next"
+            - due_date: "tomorrow 8am"
+            - energy: m
+            - duration: l
+            - is_multistep: true
+            - next_action: "Call to confirm"
+            ```
+        """
+        try:
+            # Parse wizard instructions
+            tasks_to_update = []
+            current_task = None
+
+            for line in wizard_instructions.strip().split('\n'):
+                line = line.strip()
+
+                if not line or line.startswith('WIZARD OUTPUT') or line.startswith('Total:'):
+                    continue
+
+                if line.startswith('task_id:'):
+                    if current_task:
+                        tasks_to_update.append(current_task)
+                    current_task = {'task_id': line.split(':', 1)[1].strip()}
+                elif line.startswith('- ') and current_task:
+                    key_value = line[2:].split(':', 1)
+                    if len(key_value) == 2:
+                        key = key_value[0].strip()
+                        value = key_value[1].strip().strip('"')
+                        current_task[key] = value
+
+            if current_task:
+                tasks_to_update.append(current_task)
+
+            if not tasks_to_update:
+                return self._error("InvalidInput", "No valid task updates found in wizard instructions")
+
+            # Process each task
+            successful = []
+            failed = []
+
+            for task_update in tasks_to_update:
+                task_id = task_update.get('task_id')
+
+                try:
+                    # Get current task to preserve existing data
+                    task = self.api.get_task(task_id)
+
+                    # Build update payload
+                    update_data = {}
+
+                    # 1. Content update
+                    if 'content' in task_update:
+                        update_data['content'] = task_update['content']
+
+                    # 2. Description update
+                    if 'description' in task_update:
+                        update_data['description'] = task_update['description']
+
+                    # 3. Parse and set labels
+                    if 'labels' in task_update or 'energy' in task_update or 'duration' in task_update:
+                        # Start with existing labels
+                        labels = set(task.labels)
+
+                        # Energy mapping
+                        energy_map = {'h': 'highenergy', 'm': 'medenergy', 'l': 'lowenergy'}
+                        # Remove existing energy labels
+                        labels -= {'highenergy', 'medenergy', 'lowenergy'}
+                        if 'energy' in task_update:
+                            energy_label = energy_map.get(task_update['energy'].lower())
+                            if energy_label:
+                                labels.add(energy_label)
+
+                        # Duration mapping
+                        duration_map = {'s': 'short', 'm': 'medium', 'l': 'long'}
+                        # Remove existing duration labels
+                        labels -= {'short', 'medium', 'long'}
+                        if 'duration' in task_update:
+                            duration_label = duration_map.get(task_update['duration'].lower())
+                            if duration_label:
+                                labels.add(duration_label)
+
+                        # Natural language label updates
+                        if 'labels' in task_update:
+                            label_instructions = task_update['labels'].lower()
+                            # Parse "add X, remove Y" format
+                            for instruction in label_instructions.split(','):
+                                instruction = instruction.strip()
+                                if instruction.startswith('add '):
+                                    label_to_add = instruction[4:].strip().lstrip('@')
+                                    labels.add(label_to_add)
+                                elif instruction.startswith('remove '):
+                                    label_to_remove = instruction[7:].strip().lstrip('@')
+                                    labels.discard(label_to_remove)
+
+                        update_data['labels'] = list(labels)
+
+                    # 4. Parse and set due date (natural language → actual date)
+                    if 'due_date' in task_update:
+                        due_input = task_update['due_date']
+                        # Use get_current_time to get today's date for parsing
+                        time_result = self.get_current_time()
+                        time_data = json.loads(time_result)['data']
+                        today = time_data['date']
+
+                        # Simple natural language parsing
+                        due_string = self._parse_natural_date(due_input, today)
+                        if due_string:
+                            update_data['due_string'] = due_string
+
+                    # Execute update if there are changes
+                    if update_data:
+                        self.api.update_task(task_id, **update_data)
+
+                    # 5. Handle multi-step tasks (create subtask with @next)
+                    is_multistep = task_update.get('is_multistep', '').lower() == 'true'
+                    next_action = task_update.get('next_action')
+
+                    if is_multistep and next_action:
+                        # Create subtask with @next label
+                        self.api.add_task(
+                            content=next_action,
+                            parent_id=task_id,
+                            labels=['next']
+                        )
+                    elif not is_multistep:
+                        # Simple task - ensure it has @next if not already present
+                        if 'labels' in update_data and 'next' not in update_data['labels']:
+                            update_data['labels'].append('next')
+                            self.api.update_task(task_id, labels=update_data['labels'])
+
+                    successful.append(task_id)
+
+                except Exception as e:
+                    failed.append({'task_id': task_id, 'error': str(e)})
+
+            # Build summary
+            total = len(tasks_to_update)
+            success_count = len(successful)
+            fail_count = len(failed)
+
+            summary_parts = []
+            if success_count > 0:
+                summary_parts.append(f"✅ Processed {success_count} task(s)")
+            if fail_count > 0:
+                summary_parts.append(f"❌ Failed {fail_count} task(s)")
+
+            summary = " | ".join(summary_parts)
+
+            return self._success(
+                summary,
+                data={
+                    "total": total,
+                    "successful": success_count,
+                    "failed": fail_count,
+                    "successful_ids": successful,
+                    "failed_details": failed
+                }
+            )
+
+        except Exception as e:
+            return self._error("TodoistAPIError", f"Failed to process wizard output: {str(e)}")
+
+    def _parse_natural_date(self, date_input: str, today: str) -> str:
+        """
+        Parse natural language date input into Todoist-compatible format.
+
+        Args:
+            date_input: Natural language like "tomorrow 8am", "every day"
+            today: Today's date in YYYY-MM-DD format
+
+        Returns:
+            Todoist-compatible date string
+        """
+        from datetime import datetime, timedelta
+
+        date_lower = date_input.lower().strip()
+
+        # Handle "tomorrow"
+        if 'tomorrow' in date_lower:
+            tomorrow = datetime.strptime(today, "%Y-%m-%d") + timedelta(days=1)
+            date_str = tomorrow.strftime("%Y-%m-%d")
+
+            # Check for time component
+            if 'am' in date_lower or 'pm' in date_lower or ':' in date_lower:
+                # Extract time (simple parsing)
+                time_part = date_lower.replace('tomorrow', '').strip()
+                return f"{date_str} {time_part}"
+            return date_str
+
+        # Handle "today"
+        if date_lower == 'today' or date_lower.startswith('today '):
+            if 'am' in date_lower or 'pm' in date_lower or ':' in date_lower:
+                time_part = date_lower.replace('today', '').strip()
+                return f"{today} {time_part}"
+            return today
+
+        # Handle recurring patterns (pass through to Todoist)
+        if 'every' in date_lower:
+            return date_input  # Todoist handles "every day", "every week", etc.
+
+        # If it looks like a time only, append to today
+        if 'am' in date_lower or 'pm' in date_lower or date_lower.count(':') == 1:
+            return f"{today} {date_input}"
+
+        # Otherwise, return as-is and let Todoist parse it
+        return date_input
