@@ -1531,17 +1531,27 @@ class TodoistAgent(BaseAgent):
             overdue_daily_tasks = []
             today_date = date.today()
 
+            # Track statistics for reporting
+            daily_recurring_count = 0
+            non_daily_recurring_count = 0
+            non_recurring_count = 0
+
             for task in tasks:
                 if task.due and task.due.date:
                     try:
                         # Check if it's a recurring task
                         if not task.due.is_recurring:
+                            non_recurring_count += 1
                             continue
 
                         # Check if it's a daily recurrence
                         # Todoist returns string like "every day" or "every 1 day"
                         if task.due.string and "every day" not in task.due.string.lower() and "every 1 day" not in task.due.string.lower():
+                            non_daily_recurring_count += 1
                             continue
+
+                        # It's a daily recurring task
+                        daily_recurring_count += 1
 
                         # Parse due date
                         due_date = datetime.strptime(task.due.date, "%Y-%m-%d").date()
@@ -1554,7 +1564,17 @@ class TodoistAgent(BaseAgent):
                         continue
 
             if not overdue_daily_tasks:
-                return self._success("No overdue daily routine tasks found")
+                summary = f"✓ Checked {len(tasks)} routine tasks: {daily_recurring_count} daily recurring, {non_daily_recurring_count} other recurring, {non_recurring_count} non-recurring. No overdue daily routines found."
+                return self._success(
+                    summary,
+                    data={
+                        "total_tasks": len(tasks),
+                        "daily_recurring": daily_recurring_count,
+                        "non_daily_recurring": non_daily_recurring_count,
+                        "non_recurring": non_recurring_count,
+                        "overdue_count": 0
+                    }
+                )
 
             # Reset each overdue daily task to today
             reset_count = 0
