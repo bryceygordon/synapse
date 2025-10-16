@@ -10,11 +10,7 @@ Creates a new task in Todoist.
 **Parameters:**
 - `content` (required): Task title/description
 - `project_name` (default: "Inbox"): Project name (e.g., "Processed", "Inbox", "Groceries")
-- `labels` (optional): List of context labels as strings (e.g., ["home", "chore"])
-  - **CRITICAL**: Must be an array/list, NOT a string!
-  - Correct: `["next", "yard", "home"]`
-  - WRONG: `"@next @yard @home"` or `"next yard home"`
-  - Do NOT include @ prefix - it's stripped automatically
+- `labels` (optional): List of context labels as strings (e.g., ["home", "chore"]). Do NOT include @ prefix.
 - `priority` (default: 1): Priority level 1-4 (1=lowest/none, 4=highest)
 - `due_string` (optional): Due date
   - **Format**: YYYY-MM-DD for specific dates (e.g., "2025-11-03")
@@ -69,10 +65,7 @@ Updates an existing task.
 **Parameters:**
 - `task_id` (required): The ID of the task to update
 - `content` (optional): New task description
-- `labels` (optional): New labels list (replaces existing)
-  - **CRITICAL**: Must be an array/list, NOT a string!
-  - Correct: `["next", "yard", "home"]`
-  - WRONG: `"@next @yard @home"`
+- `labels` (optional): New labels list (replaces existing). Pass as list like ["next", "yard"]
 - `priority` (optional): New priority 1-4
 - `due_string` (optional): New due date (use "no date" to remove)
 - `description` (optional): New description

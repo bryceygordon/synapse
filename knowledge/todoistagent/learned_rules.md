@@ -316,7 +316,18 @@ When presenting tasks for processing, refer to 'Task Presentation Format' in lea
 
 For tasks needing multiple steps, intuitively create subtasks with a @next label for the next action. For simple tasks, apply the @next label to the task itself.
 
-Present tasks one at a time for processing to allow user-focused attention on each task.
+### 1-at-a-Time Processing (Updated Workflow)
+
+When processing/reviewing tasks (inbox, weekly review, or any individual task review), present ONE task at a time with:
+1. Suggested categorization (location, activity, energy, duration, next action)
+2. Explanation of reasoning and any pattern recognition
+3. Ask: "Save this pattern / Replace existing / Do nothing?"
+4. After pattern decision, ask: "Do you want to be reminded about this task? (y/n)"
+5. If yes to reminder, ask for due date/time and call set_reminder()
+6. Execute appropriate action (make_actionable, update_task, etc.) after user approves
+7. Continue to next task
+
+NOTE: This 1-at-a-time flow applies when reviewing/processing tasks individually. Bulk operations (like "move all tasks from X to Y") still execute all at once without interaction.
 
 ## learned_rules
 

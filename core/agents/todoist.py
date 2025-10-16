@@ -184,36 +184,41 @@ class TodoistAgent(BaseAgent):
 
         Args:
             content: Task title
-            project_name: Project
+            project_name: Project (ignored if parent_id provided)
             labels: Labels (no @)
             priority: 1-4
             due_string: YYYY-MM-DD
             description: Notes
             section_name: Section
-            parent_id: Parent ID
+            parent_id: Parent ID (for subtasks - inherits parent's project)
             duration: Amount
             duration_unit: Unit
         """
         try:
-            # Find the project
-            project = self._find_project_by_name(project_name)
-            if not project:
-                return self._error(
-                    "ProjectNotFound",
-                    f"Project '{project_name}' not found. Available projects: "
-                    f"{', '.join(p.name for p in self._get_projects())}"
-                )
-
             # Prepare task data
             task_data = {
                 "content": content,
-                "project_id": project.id,
                 "priority": priority
             }
 
-            # Add section if provided
-            if section_name:
-                section = self._find_section_by_name(section_name, project_id=project.id)
+            # Handle subtasks vs regular tasks
+            if parent_id:
+                # Subtask - inherits parent's project, don't set project_id
+                task_data["parent_id"] = parent_id
+            else:
+                # Regular task - find and set project
+                project = self._find_project_by_name(project_name)
+                if not project:
+                    return self._error(
+                        "ProjectNotFound",
+                        f"Project '{project_name}' not found. Available projects: "
+                        f"{', '.join(p.name for p in self._get_projects())}"
+                    )
+                task_data["project_id"] = project.id
+
+            # Add section if provided (only for regular tasks, not subtasks)
+            if section_name and not parent_id:
+                section = self._find_section_by_name(section_name, project_id=task_data["project_id"])
                 if not section:
                     return self._error(
                         "SectionNotFound",
@@ -258,12 +263,18 @@ class TodoistAgent(BaseAgent):
             due_str = f" (due: {due_string})" if due_string else ""
             priority_str = f" [P{priority}]" if priority > 1 else ""
 
+            if parent_id:
+                location = "as subtask"
+            else:
+                location = f"in #{project_name}"
+
             return self._success(
-                f"Created task in #{project_name}{labels_str}{due_str}{priority_str}",
+                f"Created task {location}{labels_str}{due_str}{priority_str}",
                 data={
                     "task_id": task.id,
                     "content": task.content,
-                    "project": project_name,
+                    "project": project_name if not parent_id else None,
+                    "parent_id": parent_id,
                     "url": task.url
                 }
             )
@@ -1095,8 +1106,8 @@ class TodoistAgent(BaseAgent):
             # Find processed project
             processed = self._find_project_by_name("processed")
 
-            # Move to processed (API call 1 of 2 - unavoidable)
-            self.api.move_task(task_id, project_id=processed.id)
+            # Move to processed with all subtasks (if any)
+            move_result = self._move_task_with_subtasks(task_id, processed.id)
 
             # Update labels and description (API call 2 of 2 - unavoidable)
             update_data = {"labels": labels}
@@ -1163,37 +1174,423 @@ class TodoistAgent(BaseAgent):
         except Exception as e:
             return self._error("TodoistAPIError", f"Failed to create question: {str(e)}")
 
+    def _calculate_reminder_time(self, due_date: str, due_time: str = None) -> datetime:
+        """
+        Calculate reminder time using 45-minute buffer rule.
+
+        Rules:
+        - If due_time >= 08:30 OR no due_time: reminder = 07:45
+        - If due_time < 08:30: reminder = due_time - 45 minutes
+
+        Args:
+            due_date: Date in YYYY-MM-DD format
+            due_time: Time in HH:MM format (24-hour), optional
+
+        Returns:
+            datetime object with timezone
+        """
+        from datetime import timedelta
+
+        # Parse due date
+        due_dt = datetime.strptime(due_date, "%Y-%m-%d")
+        due_dt = due_dt.replace(tzinfo=self.timezone)
+
+        if due_time:
+            # Parse time
+            hour, minute = map(int, due_time.split(":"))
+            due_dt = due_dt.replace(hour=hour, minute=minute)
+
+            # Check if before 8:30am
+            cutoff = due_dt.replace(hour=8, minute=30)
+
+            if due_dt < cutoff:
+                # Maintain 45-minute buffer
+                reminder_dt = due_dt - timedelta(minutes=45)
+            else:
+                # Use default 7:45am
+                reminder_dt = due_dt.replace(hour=7, minute=45)
+        else:
+            # No time specified, default to 7:45am
+            reminder_dt = due_dt.replace(hour=7, minute=45)
+
+        return reminder_dt
+
+    def _get_subtasks(self, parent_id: str) -> list[Task]:
+        """
+        Get all subtasks for a parent task.
+
+        Args:
+            parent_id: ID of parent task
+
+        Returns:
+            List of Task objects that are children of the parent
+        """
+        all_tasks = self._get_tasks_list()
+        return [task for task in all_tasks if task.parent_id == parent_id]
+
+    def _move_task_with_subtasks(self, task_id: str, project_id: str) -> dict:
+        """
+        Move a task and all its subtasks to a new project.
+
+        Subtasks inherit parent's project, but we move them explicitly to be safe.
+
+        Args:
+            task_id: Parent task ID
+            project_id: Destination project ID
+
+        Returns:
+            dict with counts of moved tasks
+        """
+        # Move parent first
+        self.api.move_task(task_id, project_id=project_id)
+        moved_count = 1
+
+        # Get and move all subtasks
+        subtasks = self._get_subtasks(task_id)
+        for subtask in subtasks:
+            try:
+                self.api.move_task(subtask.id, project_id=project_id)
+                moved_count += 1
+            except Exception as e:
+                # Log but don't fail - subtask might already be in correct project
+                pass
+
+        return {
+            "moved_count": moved_count,
+            "parent_id": task_id,
+            "subtask_count": len(subtasks)
+        }
+
+    def _find_staggered_slot(self, target_datetime: datetime) -> datetime:
+        """
+        Find next available reminder slot, staggering by 1 minute if occupied.
+
+        Checks all tasks in reminder project and increments time until free slot found.
+
+        Args:
+            target_datetime: Desired reminder time
+
+        Returns:
+            Available datetime (may be offset from target)
+        """
+        from datetime import timedelta
+
+        # Get all tasks in reminder project
+        reminder_project = self._find_project_by_name("reminder")
+        tasks = self._get_tasks_list(project_id=reminder_project.id)
+
+        # Extract all due datetimes
+        occupied_slots = set()
+        for task in tasks:
+            if task.due and task.due.datetime:
+                # Parse ISO datetime and normalize to minute precision
+                dt = datetime.fromisoformat(task.due.datetime.replace('Z', '+00:00'))
+                # Convert to user timezone and truncate seconds
+                dt = dt.astimezone(self.timezone).replace(second=0, microsecond=0)
+                occupied_slots.add(dt)
+
+        # Find free slot
+        candidate = target_datetime.replace(second=0, microsecond=0)
+        while candidate in occupied_slots:
+            candidate += timedelta(minutes=1)
+
+        return candidate
+
     def set_reminder(
         self,
         task_id: str,
-        when: str
+        due_date: str,
+        due_time: str = None
     ) -> str:
         """
-        Move task to Reminders with due date.
+        Set reminder for a task (standard 45-minute buffer rule).
 
-        NOTE: Todoist API requires 2 separate calls (move + update) - this is unavoidable.
+        Workflow:
+        1. Set due date/time on original task (stays in current project)
+        2. Calculate reminder time (7:45am default, or due_time - 45min if before 8:30am)
+        3. Find staggered slot (increment by 1min if conflict)
+        4. Create reminder task in "reminder" project with calculated time
+        5. Prompt user to manually set Todoist reminder attribute via UI
 
         Args:
             task_id: Task to set reminder for
-            when: Due date (YYYY-MM-DD or YYYY-MM-DD HH:MM)
+            due_date: Due date in YYYY-MM-DD format
+            due_time: Due time in HH:MM format (24-hour), optional
+
+        Example:
+            set_reminder("123", "2025-10-22", "14:30")
+            → Original task due 2025-10-22 14:30
+            → Reminder task created for 2025-10-22 07:45 (or 07:46 if 07:45 occupied)
         """
         try:
-            # Find reminder project
-            reminder = self._find_project_by_name("reminder")
+            # Step 1: Get original task details
+            task = self.api.get_task(task_id)
 
-            # Move to reminder project (API call 1 of 2 - unavoidable)
-            self.api.move_task(task_id, project_id=reminder.id)
+            # Step 2: Set due date/time on original task
+            if due_time:
+                due_string = f"{due_date} {due_time}"
+            else:
+                due_string = due_date
+            self.api.update_task(task_id, due_string=due_string)
 
-            # Set due date (API call 2 of 2 - unavoidable)
-            self.api.update_task(task_id, due_string=when)
+            # Step 3: Calculate reminder time
+            reminder_datetime = self._calculate_reminder_time(due_date, due_time)
+
+            # Step 4: Find staggered slot
+            final_reminder_time = self._find_staggered_slot(reminder_datetime)
+
+            # Step 5: Create reminder task in "reminder" project
+            reminder_project = self._find_project_by_name("reminder")
+
+            # Format datetime for Todoist API (ISO 8601 with timezone)
+            reminder_due_string = final_reminder_time.isoformat()
+
+            reminder_task = self.api.add_task(
+                content=f"REMINDER: {task.content}",
+                project_id=reminder_project.id,
+                due_string=reminder_due_string
+            )
+
+            # Format time for display
+            time_display = final_reminder_time.strftime("%I:%M %p")
 
             return self._success(
-                f"→ Reminder ({when})",
-                data={"task_id": task_id, "when": when}
+                f"✓ Reminder task created for {time_display}\n"
+                f"⚠️  MANUAL ACTION REQUIRED: Open Todoist and set reminder attribute on task:\n"
+                f"   {reminder_task.url}",
+                data={
+                    "original_task_id": task_id,
+                    "original_task_due": due_string,
+                    "reminder_task_id": reminder_task.id,
+                    "reminder_task_url": reminder_task.url,
+                    "reminder_time": final_reminder_time.isoformat(),
+                    "reminder_time_display": time_display
+                }
             )
 
         except Exception as e:
             return self._error("TodoistAPIError", f"Failed to set reminder: {str(e)}")
+
+    def create_standalone_reminder(
+        self,
+        content: str,
+        reminder_date: str,
+        reminder_time: str = "07:45"
+    ) -> str:
+        """
+        Create a standalone reminder (not linked to any existing task).
+
+        Use this when user wants a simple reminder like "remind me about basketball at 9am tomorrow".
+        Creates task directly in "reminder" project with staggered time if needed.
+
+        Args:
+            content: What to be reminded about
+            reminder_date: Date in YYYY-MM-DD format
+            reminder_time: Time in HH:MM format (24-hour), default 07:45
+
+        Example:
+            create_standalone_reminder("Basketball game", "2025-10-23", "09:00")
+        """
+        try:
+            # Parse reminder datetime
+            reminder_dt = datetime.strptime(f"{reminder_date} {reminder_time}", "%Y-%m-%d %H:%M")
+            reminder_dt = reminder_dt.replace(tzinfo=self.timezone)
+
+            # Find staggered slot
+            final_reminder_time = self._find_staggered_slot(reminder_dt)
+
+            # Create task in reminder project
+            reminder_project = self._find_project_by_name("reminder")
+            reminder_task = self.api.add_task(
+                content=f"REMINDER: {content}",
+                project_id=reminder_project.id,
+                due_string=final_reminder_time.isoformat()
+            )
+
+            # Format time for display
+            time_display = final_reminder_time.strftime("%I:%M %p on %A, %B %d")
+
+            return self._success(
+                f"✓ Standalone reminder created for {time_display}\n"
+                f"⚠️  MANUAL ACTION REQUIRED: Open Todoist and set reminder attribute on task:\n"
+                f"   {reminder_task.url}",
+                data={
+                    "reminder_task_id": reminder_task.id,
+                    "reminder_task_url": reminder_task.url,
+                    "reminder_time": final_reminder_time.isoformat(),
+                    "reminder_time_display": time_display
+                }
+            )
+
+        except Exception as e:
+            return self._error("TodoistAPIError", f"Failed to create standalone reminder: {str(e)}")
+
+    def set_routine_reminder(
+        self,
+        task_id: str,
+        reminder_time: str,
+        recurrence: str = "every day"
+    ) -> str:
+        """
+        Set reminder for routine task (reminder time = due time, recurring).
+
+        For routine tasks, the reminder time matches the due time exactly (no 45-minute buffer).
+        Task is moved to "routine" project and made recurring.
+
+        Workflow:
+        1. Move task to "routine" project
+        2. Set as recurring with due time
+        3. Create matching recurring reminder task in "reminder" project
+        4. Prompt user to manually set Todoist reminder attribute
+
+        Args:
+            task_id: Task to convert to routine
+            reminder_time: Time in HH:MM format (24-hour) - serves as both due time and reminder time
+            recurrence: Recurrence pattern (default: "every day")
+
+        Example:
+            set_routine_reminder("123", "09:00", "every day")
+            → Task moved to routine, recurring daily at 9:00am
+            → Reminder task created in reminder project, also recurring daily at 9:00am
+        """
+        try:
+            # Step 1: Get task details
+            task = self.api.get_task(task_id)
+
+            # Step 2: Move to routine project
+            routine_project = self._find_project_by_name("routine")
+            self.api.move_task(task_id, project_id=routine_project.id)
+
+            # Step 3: Set recurring due time
+            due_string = f"{recurrence} at {reminder_time}"
+            self.api.update_task(task_id, due_string=due_string)
+
+            # Step 4: Create matching reminder task in "reminder" project (also recurring)
+            reminder_project = self._find_project_by_name("reminder")
+
+            reminder_task = self.api.add_task(
+                content=f"REMINDER: {task.content}",
+                project_id=reminder_project.id,
+                due_string=due_string  # Same recurring pattern
+            )
+
+            # Parse time for display
+            hour, minute = map(int, reminder_time.split(":"))
+            time_obj = datetime.now(self.timezone).replace(hour=hour, minute=minute)
+            time_display = time_obj.strftime("%I:%M %p")
+
+            return self._success(
+                f"✓ Routine reminder created: {recurrence} at {time_display}\n"
+                f"⚠️  MANUAL ACTION REQUIRED: Open Todoist and set reminder attribute on task:\n"
+                f"   {reminder_task.url}",
+                data={
+                    "routine_task_id": task_id,
+                    "routine_task_due": due_string,
+                    "reminder_task_id": reminder_task.id,
+                    "reminder_task_url": reminder_task.url,
+                    "reminder_time": reminder_time,
+                    "reminder_time_display": time_display,
+                    "recurrence": recurrence
+                }
+            )
+
+        except Exception as e:
+            return self._error("TodoistAPIError", f"Failed to set routine reminder: {str(e)}")
+
+    def reset_overdue_routines(self) -> str:
+        """
+        Reset overdue DAILY routine tasks to today.
+
+        Finds all tasks in "routine" project that are:
+        - Daily recurring (due.is_recurring = True with "every day" pattern)
+        - Overdue (due date is before today)
+
+        Reschedules them to today, preserving the time component.
+        Useful for daily routines that got skipped - brings them back to current day.
+
+        Returns:
+            JSON with count of reset tasks and their details
+        """
+        try:
+            from datetime import date
+
+            # Get current date
+            today = date.today().strftime("%Y-%m-%d")
+
+            # Get all tasks in routine project
+            routine_project = self._find_project_by_name("routine")
+            tasks = self._get_tasks_list(project_id=routine_project.id)
+
+            # Find overdue DAILY recurring tasks
+            overdue_daily_tasks = []
+            today_date = date.today()
+
+            for task in tasks:
+                if task.due and task.due.date:
+                    try:
+                        # Check if it's a recurring task
+                        if not task.due.is_recurring:
+                            continue
+
+                        # Check if it's a daily recurrence
+                        # Todoist returns string like "every day" or "every 1 day"
+                        if task.due.string and "every day" not in task.due.string.lower() and "every 1 day" not in task.due.string.lower():
+                            continue
+
+                        # Parse due date
+                        due_date = datetime.strptime(task.due.date, "%Y-%m-%d").date()
+
+                        # Check if overdue (due date is before today)
+                        if due_date < today_date:
+                            overdue_daily_tasks.append(task)
+                    except:
+                        # Skip tasks with invalid dates
+                        continue
+
+            if not overdue_daily_tasks:
+                return self._success("No overdue daily routine tasks found")
+
+            # Reset each overdue daily task to today
+            reset_count = 0
+            reset_details = []
+
+            for task in overdue_daily_tasks:
+                try:
+                    # Preserve time if it exists
+                    if task.due.datetime:
+                        # Has time component - preserve it
+                        old_dt = datetime.fromisoformat(task.due.datetime.replace('Z', '+00:00'))
+                        new_dt = datetime.combine(today_date, old_dt.time())
+                        new_dt = new_dt.replace(tzinfo=self.timezone)
+                        due_string = new_dt.isoformat()
+                    else:
+                        # Date only - just update date
+                        due_string = today
+
+                    # Update task
+                    self.api.update_task(task.id, due_string=due_string)
+                    reset_count += 1
+
+                    reset_details.append({
+                        "task_id": task.id,
+                        "content": task.content,
+                        "old_due": task.due.date,
+                        "new_due": today
+                    })
+                except Exception as e:
+                    # Skip tasks that fail to update
+                    continue
+
+            return self._success(
+                f"✓ Reset {reset_count} overdue daily routine task(s) to today",
+                data={
+                    "reset_count": reset_count,
+                    "reset_tasks": reset_details
+                }
+            )
+
+        except Exception as e:
+            return self._error("TodoistAPIError", f"Failed to reset daily routines: {str(e)}")
 
     def list_next_actions(self) -> str:
         """

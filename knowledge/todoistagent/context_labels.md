@@ -1,57 +1,47 @@
-# Context Labels - Primary Organization
+# Context Labels - Decision Guide
 
-Contexts define WHERE, HOW, WITH WHOM, or WHEN a task can be done.
+Use this guide to disambiguate between similar contexts. The constrained tools enforce valid options via enums.
 
-## Critical Format Rules
+## Location Disambiguation
 
-- Labels must be passed as a LIST: `["next", "yard", "home"]`
-- NEVER as a single string like "@next @yard @home"
-- Always strip @ prefix before passing to API
-- Contexts are COMBINABLE for nuanced organization
+**@house vs @home vs @yard:**
+- **@house**: Inside the house specifically (vacuuming, cleaning windows)
+- **@home**: General home context when inside/outside distinction doesn't matter
+- **@yard**: Outdoor/garden work specifically (mowing, gardening)
 
-## Location Contexts
-
-- **@home**: Tasks done at home (general)
-- **@house**: Tasks done inside the house
-- **@yard**: Outdoor/garden tasks
-- **@errand**: General errands (going out)
-- **@bunnings**: Specific errand at Bunnings hardware store
+**@errand vs @bunnings vs @parents:**
+- **@errand**: General errands/shopping (groceries, etc.)
+- **@bunnings**: Specific trips to Bunnings hardware store
 - **@parents**: Errands at parents' house (Wendy & Ian)
 
-## Activity Contexts
+## Activity Disambiguation
 
-- **@computer**: Digital work/tasks
-- **@email**: Email-specific actions
-- **@call**: Phone calls needed
-- **@chore**: Household chores
-- **@maintenance**: Home/car/equipment maintenance
+**@chore vs @maintenance:**
+- **@chore**: Routine cleaning/organizing tasks
+- **@maintenance**: Fixing/repairing things that are broken
 
-## People Contexts
+**@call vs @email:**
+- **@call**: Requires phone call
+- **@email**: Can be done via email
 
-- **@bec**: Tasks involving Bec (wife)
-- **@william**: Tasks involving William (oldest son)
-- **@reece**: Tasks involving Reece (middle son)
-- **@alex**: Tasks involving Alex (youngest son)
-- **@parents**: Also functions as errand context
+## Energy & Duration
+
+**Energy levels** (required for chores):
+- **@lowenergy**: Minimal effort
+- **@medenergy**: Moderate effort
+- **@highenergy**: Significant physical/mental effort
+
+**Duration** (required for chores):
+- **@short**: Under 15 minutes
+- **@medium**: 15 minutes to 1 hour
+- **@long**: Over 1 hour
 
 ## Special Contexts
 
-- **@next**: Next action for a task/project (critical for GTD)
-- **@waiting**: Waiting on someone/something (delegated or blocked)
-- **@weather**: Weather-dependent tasks (outdoor work that can't be done in rain)
-- **@nokids**: Tasks that require kids to be away (high-energy/disruptive)
-
-## Energy Contexts (REQUIRED for all chores)
-
-- **@lowenergy**: Tasks that don't take much energy to complete
-- **@medenergy**: Tasks that take medium energy (moderate physical/mental effort)
-- **@highenergy**: Tasks that take significant energy (physical or mental)
-
-## Duration Contexts (REQUIRED for all chores)
-
-- **@short**: Tasks that don't take much time (under 15 mins)
-- **@medium**: Tasks that take 15 mins to 1 hour
-- **@long**: Tasks that take over an hour to complete
+- **@next**: This is the immediate next action (GTD critical)
+- **@weather**: Weather-dependent outdoor work
+- **@nokids**: Kids must be away (disruptive high-energy tasks)
+- **@waiting**: Blocked/delegated, waiting on someone
 
 ## Combination Examples
 
