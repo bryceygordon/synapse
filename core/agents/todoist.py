@@ -1538,6 +1538,7 @@ class TodoistAgent(BaseAgent):
 
             # Collect all due strings for debugging
             all_due_strings = []
+            skipped_tasks = []
 
             for task in tasks:
                 if task.due and task.due.date:
@@ -1546,6 +1547,7 @@ class TodoistAgent(BaseAgent):
                         all_due_strings.append({
                             "content": task.content,
                             "due_string": task.due.string,
+                            "due_date": task.due.date,
                             "is_recurring": task.due.is_recurring
                         })
 
@@ -1570,12 +1572,20 @@ class TodoistAgent(BaseAgent):
                         # Check if overdue (due date is before today)
                         if due_date < today_date:
                             overdue_daily_tasks.append(task)
-                    except:
-                        # Skip tasks with invalid dates
+                    except Exception as e:
+                        # Track tasks that failed to parse
+                        skipped_tasks.append({
+                            "content": task.content,
+                            "due_string": task.due.string if task.due.string else None,
+                            "due_date": task.due.date,
+                            "error": str(e)
+                        })
                         continue
 
             if not overdue_daily_tasks:
                 summary = f"✓ Checked {len(tasks)} routine tasks: {daily_recurring_count} daily recurring, {non_daily_recurring_count} other recurring, {non_recurring_count} non-recurring. No overdue daily routines found."
+                if skipped_tasks:
+                    summary += f" WARNING: {len(skipped_tasks)} task(s) skipped due to errors."
                 return self._success(
                     summary,
                     data={
@@ -1584,7 +1594,8 @@ class TodoistAgent(BaseAgent):
                         "non_daily_recurring": non_daily_recurring_count,
                         "non_recurring": non_recurring_count,
                         "overdue_count": 0,
-                        "all_due_strings": all_due_strings  # Debug info
+                        "all_due_strings": all_due_strings,  # Debug info
+                        "skipped_tasks": skipped_tasks  # Error tracking
                     }
                 )
 
