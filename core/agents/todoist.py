@@ -2013,3 +2013,111 @@ class TodoistAgent(BaseAgent):
 
         # Otherwise, return as-is and let Todoist parse it
         return date_input
+
+    def suggest_task_formatting(self, task_id: str) -> str:
+        """
+        Analyze a task and suggest improved formatting (content + description split).
+
+        ALWAYS use this when processing ANY task - it's a core rule for all task processing.
+
+        This function detects verbose task content and suggests splitting it into:
+        - Concise content (actionable summary)
+        - Detailed description (context and details)
+
+        Args:
+            task_id: Task to analyze
+
+        Returns:
+            JSON with formatting suggestions or confirmation that no changes needed
+
+        Example:
+            Input: "Revisit the Minecraft server script. Particularly the creation of new servers and the potential to create new from seed"
+            Output:
+                content: "Revisit minecraft server script"
+                description: "Particularly the creation of new servers and the potential to create new servers from seed"
+        """
+        try:
+            task = self.api.get_task(task_id)
+            content = task.content
+            current_description = task.description or ""
+
+            # Detect verbose content (multiple sentences or excessive length)
+            is_verbose = (
+                '.' in content and content.count('.') >= 1 or  # Multiple sentences
+                len(content) > 60 or  # Long content
+                content.count(',') > 2  # Too many clauses
+            )
+
+            if not is_verbose:
+                return self._success(
+                    "Task content is already concise - no formatting needed",
+                    data={
+                        "task_id": task_id,
+                        "needs_formatting": False,
+                        "current_content": content,
+                        "current_description": current_description
+                    }
+                )
+
+            # Suggest split: first sentence/phrase → content, rest → description
+            sentences = content.split('.')
+            if len(sentences) > 1:
+                # First sentence becomes content (cleaned up)
+                suggested_content = sentences[0].strip().lower()
+                # Remove common verbose words
+                suggested_content = suggested_content.replace('revisit the', 'revisit')
+                suggested_content = suggested_content.replace('look at', 'review')
+                suggested_content = suggested_content.replace('need to', '')
+
+                # Rest becomes description
+                remaining = '. '.join(sentences[1:]).strip()
+                if remaining:
+                    suggested_description = remaining.lstrip('.').strip()
+                    if suggested_description:
+                        suggested_description = suggested_description[0].upper() + suggested_description[1:]
+                else:
+                    suggested_description = current_description
+
+                return self._success(
+                    "⚠️  Verbose task detected - formatting suggested",
+                    data={
+                        "task_id": task_id,
+                        "needs_formatting": True,
+                        "current_content": content,
+                        "suggested_content": suggested_content,
+                        "current_description": current_description,
+                        "suggested_description": suggested_description
+                    }
+                )
+
+            # If no periods, but still verbose, try to extract key action
+            words = content.split()
+            if len(words) > 8:
+                # Take first 4-6 words as content
+                suggested_content = ' '.join(words[:5]).lower()
+                suggested_description = ' '.join(words[5:])
+
+                return self._success(
+                    "⚠️  Long task detected - formatting suggested",
+                    data={
+                        "task_id": task_id,
+                        "needs_formatting": True,
+                        "current_content": content,
+                        "suggested_content": suggested_content,
+                        "current_description": current_description,
+                        "suggested_description": suggested_description
+                    }
+                )
+
+            return self._success(
+                "Task formatting is acceptable",
+                data={
+                    "task_id": task_id,
+                    "needs_formatting": False,
+                    "current_content": content,
+                    "current_description": current_description
+                }
+            )
+
+        except Exception as e:
+            return self._error("TodoistAPIError", f"Failed to suggest formatting: {str(e)}")
