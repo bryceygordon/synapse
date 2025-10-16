@@ -50,10 +50,10 @@ system_prompt: >
 
   ## Pattern Learning (when you notice patterns)
   - **update_rules(section, rule_content, operation)**: Save learned patterns
-    - operation="append" - Add new rule to section (default)
-    - operation="replace" - Replace entire section content
-    - To UPDATE existing rule: Read section first, modify content, use operation="replace"
-    - To REMOVE rule: Read section, remove the line, use operation="replace"
+    - operation="auto" - Automatically detects whether to append or replace (default, recommended)
+    - operation="append" - Force adding new rule to section
+    - operation="replace" - Force replacing entire section content
+    - The tool automatically detects update/removal intent from keywords and content similarity
     - Always explain what you're changing and why
 
 

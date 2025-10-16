@@ -779,7 +779,7 @@ class TodoistAgent(BaseAgent):
         self,
         section: str,
         rule_content: str,
-        operation: str = "append"
+        operation: str = "auto"
     ) -> str:
         """
         Updates the learned rules knowledge file and commits to git.
@@ -790,16 +790,21 @@ class TodoistAgent(BaseAgent):
 
         Args:
             section: The section to update (e.g., "Processing Rules", "Weekly Review", "Task Patterns")
-            rule_content: The rule or preference to add (markdown formatted)
-            operation: How to update - "append" adds to section, "replace" replaces section content
+            rule_content: The rule or preference to add/update/replace (markdown formatted)
+            operation: How to update - "auto" (default), "append", or "replace"
+                      "auto" intelligently detects: checks if similar rule exists
+                      "append" adds new rule to section
+                      "replace" replaces entire section content
 
-        IMPORTANT: Always call this with a confirmation message after updating.
+        IMPORTANT: Always explain what you're changing and why before calling this.
         """
         try:
             import subprocess
+            import re
 
             # Ensure knowledge directory exists
-            self.knowledge_dir.mkdir(parents=True, exist_ok=True)
+            legacy_knowledge_dir = Path("knowledge")
+            legacy_knowledge_dir.mkdir(parents=True, exist_ok=True)
 
             # Read current rules file
             if self.rules_file.exists():
@@ -824,11 +829,33 @@ class TodoistAgent(BaseAgent):
             # Find or create the section
             section_header = f"## {section}"
 
+            # Auto-detect operation if needed
+            actual_operation = operation
+            if operation == "auto" and section_header in content:
+                # Extract current section content
+                section_pos = content.find(section_header)
+                next_section = content.find("\n##", section_pos + len(section_header))
+                if next_section != -1:
+                    current_section_content = content[section_pos:next_section]
+                else:
+                    current_section_content = content[section_pos:]
+
+                # Check if this is an update/removal of existing content
+                # Look for keywords that indicate replacement intent
+                if any(keyword in rule_content.lower() for keyword in ["removing", "delete", "update", "change", "replace"]):
+                    actual_operation = "replace"
+                # Check if the rule pattern already exists (simple similarity check)
+                elif any(line.strip() in current_section_content for line in rule_content.split('\n') if line.strip() and not line.strip().startswith('#')):
+                    actual_operation = "replace"
+                else:
+                    actual_operation = "append"
+            elif operation == "auto":
+                actual_operation = "append"  # New section, always append
+
             if section_header in content:
                 # Section exists
-                if operation == "replace":
+                if actual_operation == "replace":
                     # Replace entire section content
-                    import re
                     # Match from section header to next ## or end of file
                     pattern = f"({re.escape(section_header)}\n)(.*?)(\n##|$)"
                     replacement = f"\\1\n{rule_content}\n\\3"
