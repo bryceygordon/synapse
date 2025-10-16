@@ -1519,6 +1519,12 @@ class TodoistAgent(BaseAgent):
 
             # Get all tasks in routine project
             routine_project = self._find_project_by_name("routine")
+            if not routine_project:
+                return self._error(
+                    "ProjectNotFound",
+                    f"Project 'routine' not found. Available projects: "
+                    f"{', '.join(p.name for p in self._get_projects())}"
+                )
             tasks = self._get_tasks_list(project_id=routine_project.id)
 
             # Find overdue DAILY recurring tasks
