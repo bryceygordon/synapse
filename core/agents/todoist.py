@@ -52,6 +52,27 @@ class TodoistAgent(BaseAgent):
         self.rules_file = self.knowledge_dir / "learned_rules.md"
         self.context_file = self.knowledge_dir / "todoist_context.md"
 
+        # Auto-check for tasks without next actions on startup
+        self._check_tasks_without_next_actions()
+
+    def _check_tasks_without_next_actions(self):
+        """
+        Internal helper to check for tasks without next actions on startup.
+        Silently logs results - doesn't interrupt initialization.
+        """
+        try:
+            result = self.find_tasks_without_next_actions()
+            result_data = json.loads(result)
+
+            if result_data.get("status") == "success":
+                count = result_data.get("data", {}).get("count", 0)
+                if count > 0:
+                    print(f"⚠️  Startup check: {count} task(s) in processed project need next actions")
+                    print("   Run find_tasks_without_next_actions() to see details")
+        except Exception:
+            # Silently fail - don't interrupt agent initialization
+            pass
+
     def _get_projects(self) -> list[Project]:
         """Get all projects, using cache if available."""
         if self._projects_cache is None:
