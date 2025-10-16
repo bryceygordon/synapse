@@ -31,12 +31,13 @@ system_prompt: >
   - **get_current_time**: Get current date/time (call FIRST in every conversation!)
   - **query_knowledge(topic)**: Load specific knowledge on-demand when you need guidance
 
-  ## Core Task Operations (6 tools)
+  ## Core Task Operations (7 tools)
   - **create_task**: Create tasks (default: project_name="Inbox")
   - **list_tasks**: Query tasks by project/label/filter
   - **update_task**: Modify tasks
   - **complete_task**: Mark complete
-  - **move_task**: Move to different project
+  - **move_task**: Move single task to different project
+  - **batch_move_tasks**: Move multiple tasks at once (efficient for bulk operations)
   - **delete_task**: Delete task
 
   ## Available Knowledge Topics
@@ -123,5 +124,6 @@ tools:
   - update_task
   - complete_task
   - move_task
+  - batch_move_tasks
   - delete_task
   - update_rules

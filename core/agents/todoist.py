@@ -583,6 +583,81 @@ class TodoistAgent(BaseAgent):
         except Exception as e:
             return self._error("TodoistAPIError", f"Failed to move task: {str(e)}")
 
+    def batch_move_tasks(self, task_ids: list[str], project_name: str) -> str:
+        """
+        Move multiple tasks to a project in batch (optimized for performance).
+
+        This method moves multiple tasks sequentially but is optimized to minimize
+        API calls by caching the destination project lookup and not fetching task
+        details after each move.
+
+        Args:
+            task_ids: List of task IDs to move
+            project_name: Destination project name
+
+        Returns:
+            JSON with success/failure counts and details
+
+        Example:
+            batch_move_tasks(
+                task_ids=["123", "456", "789"],
+                project_name="processed"
+            )
+        """
+        try:
+            if not task_ids:
+                return self._error("InvalidInput", "No task IDs provided")
+
+            # Find the destination project once (cached lookup)
+            project = self._find_project_by_name(project_name)
+            if not project:
+                return self._error(
+                    "ProjectNotFound",
+                    f"Project '{project_name}' not found. Available projects: "
+                    f"{', '.join(p.name for p in self._get_projects())}"
+                )
+
+            # Track results
+            successful = []
+            failed = []
+
+            # Move all tasks
+            for task_id in task_ids:
+                try:
+                    # Just move without fetching task details (saves API calls)
+                    self.api.move_task(task_id, project_id=project.id)
+                    successful.append(task_id)
+                except Exception as e:
+                    failed.append({"task_id": task_id, "error": str(e)})
+
+            # Create summary message
+            total = len(task_ids)
+            success_count = len(successful)
+            fail_count = len(failed)
+
+            summary_parts = []
+            if success_count > 0:
+                summary_parts.append(f"✅ Moved {success_count} task(s) to #{project_name}")
+            if fail_count > 0:
+                summary_parts.append(f"❌ Failed to move {fail_count} task(s)")
+
+            summary = " | ".join(summary_parts)
+
+            return self._success(
+                summary,
+                data={
+                    "total": total,
+                    "successful": success_count,
+                    "failed": fail_count,
+                    "project": project_name,
+                    "successful_ids": successful,
+                    "failed_details": failed
+                }
+            )
+
+        except Exception as e:
+            return self._error("TodoistAPIError", f"Batch move failed: {str(e)}")
+
     def list_projects(self) -> str:
         """List projects."""
         try:
