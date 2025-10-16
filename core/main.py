@@ -351,8 +351,8 @@ def chat(agent_name: str = "coder"):
                     session_tokens["cached"] += response.usage.cached_tokens
                     session_tokens["turns"] += 1
 
-            # Handle tool calls
-            if response.tool_calls:
+            # Handle tool calls - continue until agent returns text instead of more tool calls
+            while response.tool_calls:
                 console.print(f"🛠️  [cyan]Invoking {len(response.tool_calls)} tool(s)...[/cyan]\n")
 
                 # Add assistant's tool use message using provider-specific format
@@ -395,7 +395,7 @@ def chat(agent_name: str = "coder"):
                     # OpenAI: extend messages with tool result messages
                     messages.extend(tool_results)
 
-                # Get next response after tool execution
+                # Get next response after tool execution (may be more tool calls or final text)
                 console.print()
                 with console.status("[bold green]Processing results...", spinner="dots"):
                     response = provider.send_message(
@@ -411,7 +411,10 @@ def chat(agent_name: str = "coder"):
                         session_tokens["input"] += response.usage.input_tokens
                         session_tokens["output"] += response.usage.output_tokens
                         session_tokens["total"] += response.usage.total_tokens
+                        session_tokens["cached"] += response.usage.cached_tokens
                         session_tokens["turns"] += 1
+
+                # Loop will continue if response has more tool_calls, otherwise break to display text
 
             # Display text response if present
             if response.text:
