@@ -337,6 +337,10 @@ NOTE: This 1-at-a-time flow applies when reviewing/processing tasks individually
 
 User prefers a conversational style with thinking process explained and asking for user agreement during ongoing tasks processing.
 
+### Subtask Context Inheritance Rule
+
+Ensure that subtasks themselves inherit and are assigned appropriate context labels similar to fully-fledged tasks. For example, if a subtask such as 'Go to shed and check for spare parts' should have the following contexts and labels: `@shed`, `@lowenergy`, `@short`, `@yard`.
+
 ### Fast Commands (Lightning-Fast Execution)
 
 **Plain 'd' from user** = Task done signal

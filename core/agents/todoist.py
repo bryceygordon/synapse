@@ -1547,7 +1547,7 @@ class TodoistAgent(BaseAgent):
                         all_due_strings.append({
                             "content": task.content,
                             "due_string": task.due.string,
-                            "due_date": task.due.date,
+                            "due_date": str(task.due.date) if task.due.date else None,
                             "is_recurring": task.due.is_recurring
                         })
 
@@ -1566,8 +1566,12 @@ class TodoistAgent(BaseAgent):
                         # It's a daily recurring task
                         daily_recurring_count += 1
 
-                        # Parse due date
-                        due_date = datetime.strptime(task.due.date, "%Y-%m-%d").date()
+                        # Parse due date - handle both string and datetime objects
+                        if isinstance(task.due.date, str):
+                            due_date = datetime.strptime(task.due.date, "%Y-%m-%d").date()
+                        else:
+                            # It's already a datetime object
+                            due_date = task.due.date.date() if hasattr(task.due.date, 'date') else task.due.date
 
                         # Check if overdue (due date is before today)
                         if due_date < today_date:
@@ -1577,7 +1581,7 @@ class TodoistAgent(BaseAgent):
                         skipped_tasks.append({
                             "content": task.content,
                             "due_string": task.due.string if task.due.string else None,
-                            "due_date": task.due.date,
+                            "due_date": str(task.due.date) if task.due.date else None,
                             "error": str(e)
                         })
                         continue
@@ -1623,7 +1627,7 @@ class TodoistAgent(BaseAgent):
                     reset_details.append({
                         "task_id": task.id,
                         "content": task.content,
-                        "old_due": task.due.date,
+                        "old_due": str(task.due.date) if task.due.date else None,
                         "new_due": today
                     })
                 except Exception as e:
