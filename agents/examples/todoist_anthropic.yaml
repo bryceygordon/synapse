@@ -4,8 +4,8 @@
 name: TodoistAgent
 class_name: TodoistAgent
 module: core.agents.todoist
-provider: openai
-model: gpt-4o
+provider: anthropic
+model: claude-sonnet-4-20250514
 
 system_prompt: >
   # IDENTITY
