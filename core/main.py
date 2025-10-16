@@ -244,7 +244,7 @@ def chat(agent_name: str = "coder"):
         # Send initial startup message (Just-In-Time architecture: AI loads knowledge on-demand)
         messages.append({
             "role": "user",
-            "content": "Initialize - get current time and reset overdue daily routines"
+            "content": "Call get_current_time() and reset_overdue_routines() to initialize the system"
         })
 
         with console.status("[bold green]Loading context...", spinner="dots"):
