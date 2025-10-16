@@ -117,6 +117,9 @@ class TestBaseProvider:
             def supports_streaming(self):
                 return False
 
+            def get_assistant_message(self, response):
+                return {"role": "assistant", "content": response.text}
+
         # Should not raise
         provider = CompleteProvider()
         assert provider is not None
@@ -133,13 +136,11 @@ class TestProviderFactory:
         assert provider is not None
         assert provider.__class__.__name__ == "AnthropicProvider"
 
-    def test_get_openai_provider_not_implemented(self):
-        """Test that OpenAI provider raises NotImplementedError."""
-        with pytest.raises(NotImplementedError) as exc_info:
-            get_provider("openai")
-
-        assert "not yet implemented" in str(exc_info.value).lower()
-        assert "anthropic" in str(exc_info.value).lower()
+    def test_get_openai_provider(self):
+        """Test loading the OpenAI provider."""
+        provider = get_provider("openai")
+        assert provider is not None
+        assert provider.__class__.__name__ == "OpenAIProvider"
 
     def test_unknown_provider_raises_error(self):
         """Test that unknown provider names raise ValueError."""
