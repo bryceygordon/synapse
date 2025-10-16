@@ -1,5 +1,5 @@
-# Configuration for the Todoist GTD Assistant Agent (OpenAI Version - LITE)
-# Ultra-minimal toolset for maximum token efficiency
+# Configuration for the Todoist GTD Assistant Agent (Anthropic/Claude Version)
+# Template for switching to Anthropic - copy to agents/todoist.yaml to use
 # ---
 name: TodoistAgent
 class_name: TodoistAgent

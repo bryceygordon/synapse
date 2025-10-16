@@ -306,3 +306,30 @@ When you notice a pattern in how the user categorizes tasks:
 - Once all criteria are met, the task can be moved to an appropriate project, usually "#processed."
 
 ---
+
+## Processing Rules
+
+Extend inbox processing: Prefill suggestions based on decision tree for user to review before executing.
+
+
+When presenting tasks for processing, refer to 'Task Presentation Format' in learned_rules to ensure presentation matches user preference.
+
+For tasks needing multiple steps, intuitively create subtasks with a @next label for the next action. For simple tasks, apply the @next label to the task itself.
+
+Present tasks one at a time for processing to allow user-focused attention on each task.
+
+## learned_rules
+
+**Questions Project Update:** Specifically intended for self-reminders to stimulate planning and decision-making processes about personal tasks, such as "Do I need to cook dinner tonight?"
+
+---
+
+User prefers a conversational style with thinking process explained and asking for user agreement during ongoing tasks processing.
+
+### Fast Commands (Lightning-Fast Execution)
+
+**Plain 'd' from user** = Task done signal
+- IMMEDIATE action: Call complete_task(task_id) with ZERO overhead
+- NO thinking, NO knowledge loading, NO time checking
+- This is a reflexive muscle-memory operation
+- Response: "✓ Task completed" (minimal)

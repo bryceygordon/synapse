@@ -8,7 +8,7 @@ and the user's specific workflow design.
 import os
 import json
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Literal
 from datetime import datetime, timezone
 from zoneinfo import ZoneInfo
 from todoist_api_python.api import TodoistAPI
@@ -366,15 +366,12 @@ class TodoistAgent(BaseAgent):
             task_id: Task ID
         """
         try:
-            # Get task details first
-            task = self.api.get_task(task_id)
-
-            # Complete it
+            # Complete the task directly (no need to fetch details first)
             self.api.complete_task(task_id)
 
             return self._success(
-                f"Completed task: {task.content}",
-                data={"task_id": task_id, "content": task.content}
+                "✓ Task completed",
+                data={"task_id": task_id}
             )
 
         except Exception as e:
@@ -1008,3 +1005,233 @@ class TodoistAgent(BaseAgent):
 
         except Exception as e:
             return self._error("FileError", f"Failed to update rules: {str(e)}")
+
+    # =========================================================================
+    # GTD-NATIVE CONSTRAINED TOOLS (Workflow-Specific)
+    # =========================================================================
+
+    def capture(self, content: str) -> str:
+        """
+        Quick capture to Inbox - get it out of your head fast.
+
+        Args:
+            content: What needs capturing
+        """
+        try:
+            inbox = self._find_project_by_name("Inbox")
+            task = self.api.add_task(
+                content=content,
+                project_id=inbox.id,
+                priority=1
+            )
+            return self._success(
+                "→ Inbox",
+                data={"task_id": task.id, "content": task.content}
+            )
+        except Exception as e:
+            return self._error("TodoistAPIError", f"Failed to capture: {str(e)}")
+
+    def add_grocery(self, item: str) -> str:
+        """
+        Add item to shopping list (bypasses GTD).
+
+        Args:
+            item: Grocery item
+        """
+        try:
+            groceries = self._find_project_by_name("groceries")
+            task = self.api.add_task(
+                content=item,
+                project_id=groceries.id,
+                priority=1
+            )
+            return self._success(
+                "→ Groceries",
+                data={"task_id": task.id, "content": task.content}
+            )
+        except Exception as e:
+            return self._error("TodoistAPIError", f"Failed to add grocery: {str(e)}")
+
+    def make_actionable(
+        self,
+        task_id: str,
+        location: Literal["home", "house", "yard", "errand", "bunnings", "parents"],
+        activity: Literal["chore", "maintenance", "call", "email", "computer"],
+        energy: Literal["lowenergy", "medenergy", "highenergy"],
+        duration: Literal["short", "medium", "long"],
+        next_action: str = None,
+        additional_contexts: list[str] = None,
+        description: str = None
+    ) -> str:
+        """
+        Process task from Inbox → Processed with full GTD contexts.
+
+        NOTE: Todoist API requires 2 separate calls (move + update) - this is unavoidable.
+
+        Args:
+            task_id: Task to process
+            location: WHERE task happens
+            activity: WHAT type of activity
+            energy: Energy level required
+            duration: Time estimate
+            next_action: If multi-step, what's the immediate next physical action
+            additional_contexts: Optional extra labels (weather, nokids, people)
+            description: Optional notes/context
+        """
+        try:
+            # Build labels
+            labels = [location, activity, energy, duration]
+            if additional_contexts:
+                labels.extend([ctx.lstrip('@') for ctx in additional_contexts])
+
+            # Handle next action logic BEFORE updating task
+            if next_action:
+                # Multi-step task - parent gets labels, subtask gets @next
+                pass  # Don't add @next to parent
+            else:
+                # Simple task - IS the next action, so add @next to parent
+                labels.append("next")
+
+            # Find processed project
+            processed = self._find_project_by_name("processed")
+
+            # Move to processed (API call 1 of 2 - unavoidable)
+            self.api.move_task(task_id, project_id=processed.id)
+
+            # Update labels and description (API call 2 of 2 - unavoidable)
+            update_data = {"labels": labels}
+            if description:
+                update_data["description"] = description
+            self.api.update_task(task_id, **update_data)
+
+            # Create next action subtask if needed
+            if next_action:
+                # Multi-step task - create subtask with @next
+                self.api.add_task(
+                    content=next_action,
+                    parent_id=task_id,
+                    labels=["next"]
+                )
+                next_info = f" + next: {next_action}"
+            else:
+                next_info = " [@next]"
+
+            return self._success(
+                f"✓ Processed{next_info}",
+                data={"task_id": task_id, "labels": labels}
+            )
+
+        except Exception as e:
+            return self._error("TodoistAPIError", f"Failed to make actionable: {str(e)}")
+
+    def ask_question(
+        self,
+        task_id: str,
+        person: Literal["bec", "william", "reece", "alex", "parents"],
+        via_call: bool = False
+    ) -> str:
+        """
+        Move task to Questions project with person context.
+
+        NOTE: Todoist API requires 2 separate calls (move + update) - this is unavoidable.
+
+        Args:
+            task_id: Task to move
+            person: Who to ask
+            via_call: True if need to call them
+        """
+        try:
+            # Build labels (questions are always low-energy & short)
+            labels = [person, "lowenergy", "short"]
+            if via_call:
+                labels.append("call")
+
+            # Find questions project
+            questions = self._find_project_by_name("questions")
+
+            # Move to questions (API call 1 of 2 - unavoidable)
+            self.api.move_task(task_id, project_id=questions.id)
+
+            # Update labels (API call 2 of 2 - unavoidable)
+            self.api.update_task(task_id, labels=labels)
+
+            return self._success(
+                f"→ Questions (@{person})",
+                data={"task_id": task_id, "person": person}
+            )
+
+        except Exception as e:
+            return self._error("TodoistAPIError", f"Failed to create question: {str(e)}")
+
+    def set_reminder(
+        self,
+        task_id: str,
+        when: str
+    ) -> str:
+        """
+        Move task to Reminders with due date.
+
+        NOTE: Todoist API requires 2 separate calls (move + update) - this is unavoidable.
+
+        Args:
+            task_id: Task to set reminder for
+            when: Due date (YYYY-MM-DD or YYYY-MM-DD HH:MM)
+        """
+        try:
+            # Find reminder project
+            reminder = self._find_project_by_name("reminder")
+
+            # Move to reminder project (API call 1 of 2 - unavoidable)
+            self.api.move_task(task_id, project_id=reminder.id)
+
+            # Set due date (API call 2 of 2 - unavoidable)
+            self.api.update_task(task_id, due_string=when)
+
+            return self._success(
+                f"→ Reminder ({when})",
+                data={"task_id": task_id, "when": when}
+            )
+
+        except Exception as e:
+            return self._error("TodoistAPIError", f"Failed to set reminder: {str(e)}")
+
+    def list_next_actions(self) -> str:
+        """
+        Show all tasks marked @next - ready to work on.
+        """
+        try:
+            tasks = self._get_tasks_list(label="next")
+
+            if not tasks:
+                return self._success("No next actions found")
+
+            # Format task list
+            summary_lines = [f"Found {len(tasks)} next action(s):\n"]
+            for i, task in enumerate(tasks, 1):
+                labels_str = f" [{', '.join('@' + l for l in task.labels if l != 'next')}]" if task.labels else ""
+                summary_lines.append(f"{i}. {task.content}{labels_str}")
+
+            return self._success(
+                "\n".join(summary_lines),
+                data={"count": len(tasks), "task_ids": [t.id for t in tasks]}
+            )
+
+        except Exception as e:
+            return self._error("TodoistAPIError", f"Failed to list next actions: {str(e)}")
+
+    def schedule_task(self, task_id: str, date: str) -> str:
+        """
+        Schedule a processed task for a specific day (planning).
+
+        Args:
+            task_id: Task to schedule
+            date: Date to schedule (YYYY-MM-DD)
+        """
+        try:
+            self.api.update_task(task_id, due_string=date)
+            return self._success(
+                f"Scheduled → {date}",
+                data={"task_id": task_id, "date": date}
+            )
+        except Exception as e:
+            return self._error("TodoistAPIError", f"Failed to schedule task: {str(e)}")

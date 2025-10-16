@@ -1,6 +1,6 @@
 import inspect
 import re
-from typing import get_type_hints, get_origin, get_args
+from typing import get_type_hints, get_origin, get_args, Literal
 
 TYPE_MAPPING = {
     str: "string",
@@ -65,7 +65,7 @@ def generate_tool_schemas(agent_instance: object) -> list[dict]:
             if not param_type:
                 continue
 
-            # Handle generic types like list[str]
+            # Handle generic types like list[str], Literal["a", "b"]
             origin = get_origin(param_type)
             args = get_args(param_type)
 
@@ -74,7 +74,13 @@ def generate_tool_schemas(agent_instance: object) -> list[dict]:
                 "description": param_descriptions.get(param.name, "No description available.")
             }
 
-            if origin is list:
+            # Check for Literal type (enum constraint)
+            if origin is Literal:
+                # Extract enum values from Literal["option1", "option2", ...]
+                enum_values = list(args)
+                prop_schema["type"] = "string"
+                prop_schema["enum"] = enum_values
+            elif origin is list:
                 # It's a list type
                 prop_schema["type"] = "array"
                 if args:
