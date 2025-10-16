@@ -46,12 +46,11 @@ class TodoistAgent(BaseAgent):
         # User timezone (default to system timezone)
         self.timezone = ZoneInfo(os.getenv("TIMEZONE", "UTC"))
 
-        # Legacy knowledge file paths (for old update_rules/query_rules methods)
-        # Note: JIT knowledge now uses BaseAgent.knowledge_dir = "knowledge/todoistagent"
-        legacy_knowledge_dir = Path("knowledge")
-        self.system_file = legacy_knowledge_dir / "todoist_system.md"
-        self.rules_file = legacy_knowledge_dir / "todoist_rules.md"
-        self.context_file = legacy_knowledge_dir / "todoist_context.md"
+        # Knowledge file paths - use JIT knowledge directory structure
+        # JIT knowledge uses BaseAgent.knowledge_dir = "knowledge/todoistagent"
+        self.system_file = self.knowledge_dir / "todoist_system.md"
+        self.rules_file = self.knowledge_dir / "learned_rules.md"
+        self.context_file = self.knowledge_dir / "todoist_context.md"
 
     def _get_projects(self) -> list[Project]:
         """Get all projects, using cache if available."""
