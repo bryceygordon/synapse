@@ -37,7 +37,7 @@
 
 When fixing labels or doing ANY bulk operation:
 - Query and count total matching tasks FIRST
-- Process in batches (10-20 at a time)
+- Process in efficient batches (typically 10-20 at a time for bulk operations)
 - Keep detailed count: "Fixed 15/47 tasks, continuing..."
 - Do NOT stop until processed the LAST matching task
 - Confirm completion: "All 47 tasks processed ✓"

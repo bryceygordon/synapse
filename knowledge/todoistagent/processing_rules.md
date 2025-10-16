@@ -3,9 +3,12 @@
 ## Processing Strategy
 
 - When user asks to "process inbox", list ALL inbox items first
-- Process in batches (5-10 at a time)
+- Process in batches that make sense based on complexity:
+  - Simple/similar tasks: 5-10 at a time
+  - Complex tasks requiring discussion: 1-3 at a time
+  - Use judgment to optimize workflow
 - After each batch, CONTINUE automatically until inbox is EMPTY
-- Report progress: "Processed 5 items, 12 remaining..."
+- Report progress: "Processed 8 items, 12 remaining..."
 
 ## Decision Tree for Each Item
 

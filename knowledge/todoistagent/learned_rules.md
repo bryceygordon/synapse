@@ -16,7 +16,10 @@ When user requests "weekly review", follow this specific process:
 
 ### Inbox Processing
 
-- Present items in **batches of 5 or less**
+- Present items in **batches that make sense based on complexity**
+  - Simple tasks (e.g., groceries, quick errands): 5-10 at a time
+  - Complex tasks needing discussion: 1-3 at a time
+  - Use judgment - prioritize smooth workflow over rigid numbers
 - For each batch, INTUIT and suggest:
   - Project destination (usually "processed")
   - Location contexts (@home, @yard, @house, etc.)
@@ -30,7 +33,7 @@ When user requests "weekly review", follow this specific process:
 
 ### Processed Review
 - List tasks oldest → newest
-- Present in batches of 5 or less
+- Present in batches that make sense based on complexity (typically 3-10 tasks)
 - Check each task for **@next action**:
   - Does the task itself have @next label? OR
   - Does it have a subtask with @next label?
@@ -78,10 +81,11 @@ After presenting batch, STOP. Wait for user response.
 
 User responds: "yes" or "change task 2 to @medenergy"
 
-**Task Numbering**: ALWAYS number 1-5 for each batch (not 6-10, 11-15, etc.)
-- First batch: Tasks 1-5
-- Second batch: Tasks 1-5 (renumber!)
+**Task Numbering**: ALWAYS restart numbering for each batch (not 6-10, 11-15, etc.)
+- First batch: Tasks 1-N (where N is batch size)
+- Second batch: Tasks 1-N (renumber!)
 - User says "task 2" = task 2 from current batch shown
+- Example: If presenting 8 tasks, number them 1-8, then next batch restarts at 1
 
 ### Processing Batch Operations
 - **NEVER process one task at a time** - always complete entire batch

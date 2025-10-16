@@ -216,12 +216,12 @@ When you find tasks with malformed labels like `["yard,@maintenance,@weather"]`:
 When user asks to "process inbox":
 
 1. Call `list_tasks(project_name="Inbox")` to get all inbox items
-2. Process in batches (5-10 at a time)
+2. Process in batches sized appropriately for task complexity (typically 5-10 at a time)
 3. For each item, determine destination project based on GTD rules
-4. Use `move_task()` to move to appropriate project
+4. Use `batch_move_tasks()` for moving multiple tasks efficiently
 5. Use `update_task()` to add labels, set priority, etc.
 6. Continue until inbox is EMPTY
-7. Report progress: "Processed 5 items, 12 remaining..."
+7. Report progress: "Processed 8 items, 12 remaining..."
 
 ### Creating Tasks with Dates
 When user says "remind me next Monday":
