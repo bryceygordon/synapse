@@ -1536,8 +1536,19 @@ class TodoistAgent(BaseAgent):
             non_daily_recurring_count = 0
             non_recurring_count = 0
 
+            # Collect all due strings for debugging
+            all_due_strings = []
+
             for task in tasks:
                 if task.due and task.due.date:
+                    # Collect due string for debugging
+                    if task.due.string:
+                        all_due_strings.append({
+                            "content": task.content,
+                            "due_string": task.due.string,
+                            "is_recurring": task.due.is_recurring
+                        })
+
                     try:
                         # Check if it's a recurring task
                         if not task.due.is_recurring:
@@ -1572,7 +1583,8 @@ class TodoistAgent(BaseAgent):
                         "daily_recurring": daily_recurring_count,
                         "non_daily_recurring": non_daily_recurring_count,
                         "non_recurring": non_recurring_count,
-                        "overdue_count": 0
+                        "overdue_count": 0,
+                        "all_due_strings": all_due_strings  # Debug info
                     }
                 )
 
