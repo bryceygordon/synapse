@@ -2,7 +2,7 @@
 
 **Purpose:** This file stores learned preferences and patterns discovered through conversations.
 **Maintained by:** TodoistAgent (updated with user approval)
-**Last updated:** 2025-10-16 2025-10-15 2025-10-15 2025-10-15 2025-10-15 2025-10-15 2025-10-15 2025-10-15 2025-10-15 2025-10-15 2025-10-15 2025-10-15 2025-10-15 2025-10-15 2025-10-15
+**Last updated:** 2025-10-16 2025-10-16 2025-10-16 2025-10-16 2025-10-15 2025-10-15 2025-10-15 2025-10-15 2025-10-15 2025-10-15 2025-10-15 2025-10-15 2025-10-15 2025-10-15 2025-10-15 2025-10-15 2025-10-15 2025-10-15
 
 ---
 
@@ -243,3 +243,7 @@ When the user mentions 'all tasks,' it refers specifically to tasks that are not
 ---
 
 Tasks with tags formatted like `@example@tag` are illegal and should be separated into distinct tags such as `@example` and `@tag`.
+
+## Task Categorization Patterns
+
+*Agent learns and adds patterns here as they're discovered and approved*

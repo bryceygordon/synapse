@@ -49,7 +49,12 @@ system_prompt: >
   - "tool_reference" - Detailed documentation for all tools
 
   ## Pattern Learning (when you notice patterns)
-  - **update_rules**: Save learned patterns to memory (requires user approval!)
+  - **update_rules(section, rule_content, operation)**: Save learned patterns
+    - operation="append" - Add new rule to section (default)
+    - operation="replace" - Replace entire section content
+    - To UPDATE existing rule: Read section first, modify content, use operation="replace"
+    - To REMOVE rule: Read section, remove the line, use operation="replace"
+    - Always explain what you're changing and why
 
 
   # WORKFLOW
