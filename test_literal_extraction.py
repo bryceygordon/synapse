@@ -16,7 +16,7 @@ config = {
     'tools': ['make_actionable']
 }
 
-provider = OpenAIProvider(config)
+provider = OpenAIProvider()
 agent = TodoistAgent(config)
 
 # Generate schemas
