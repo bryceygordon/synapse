@@ -1786,6 +1786,184 @@ class TodoistAgent(BaseAgent):
         except Exception as e:
             return self._error("TodoistAPIError", f"Failed to schedule task: {str(e)}")
 
+    def process_inbox(self) -> str:
+        """
+        Launch the interactive inbox processing wizard.
+
+        This wizard guides you through processing all inbox tasks with AI suggestions,
+        then applies all changes in batch. This is a two-phase workflow:
+
+        Phase 1: Main wizard
+        - Review and process each inbox task interactively
+        - Accept or override AI suggestions for tags, energy, duration
+        - Distinguish between simple tasks and multi-step tasks
+        - Batch move all tasks to destination project
+
+        Phase 2: Subtask tag approval (if multi-step tasks created)
+        - Review AI-suggested tags for next action subtasks
+        - Approve or override suggestions
+        - Apply tags in batch
+
+        Returns:
+            Success message with summary of processed tasks
+        """
+        try:
+            from core.wizard.inbox_wizard import run_inbox_wizard, run_subtask_tag_wizard
+
+            # Step 1: Get inbox tasks sorted by creation date (newest first)
+            result = self.list_tasks(project_name="Inbox", sort_by="created_desc")
+            result_data = json.loads(result)
+
+            if result_data["status"] != "success":
+                return self._error("InboxError", f"Failed to fetch inbox tasks: {result_data.get('message', 'Unknown error')}")
+
+            tasks_data = result_data["data"]["tasks"]
+
+            if not tasks_data:
+                return self._success("✓ Inbox is empty - nothing to process")
+
+            # Get full task details for wizard
+            tasks = []
+            for task_data in tasks_data:
+                task_full = self.api.get_task(task_data["id"])
+                tasks.append({
+                    'id': task_full.id,
+                    'content': task_full.content,
+                    'description': task_full.description or ''
+                })
+
+            # Step 2: Generate AI suggestions for all tasks
+            ai_suggestions = {}
+
+            for task in tasks:
+                content_lower = task['content'].lower()
+
+                # Simple heuristic-based suggestions
+                suggestion = {}
+
+                # Content reformatting (if needed)
+                if len(task['content']) > 50 or ',' in task['content']:
+                    words = task['content'].split()
+                    if len(words) > 5:
+                        suggestion['content'] = ' '.join(words[:5])
+
+                # Determine if simple or multi-step
+                multi_step_keywords = ['plan', 'organize', 'research', 'build', 'create', 'setup', 'set up']
+                is_multi_step = any(keyword in content_lower for keyword in multi_step_keywords)
+                suggestion['is_simple'] = not is_multi_step
+
+                # Next action for multi-step
+                if is_multi_step:
+                    if 'plan' in content_lower or 'research' in content_lower:
+                        suggestion['next_action'] = "Research and gather information"
+                    elif 'organize' in content_lower:
+                        suggestion['next_action'] = "Identify what needs organizing"
+                    elif 'setup' in content_lower or 'set up' in content_lower:
+                        suggestion['next_action'] = "Determine setup requirements"
+
+                # Labels - context/activity
+                label_suggestions = []
+                if 'call' in content_lower or 'phone' in content_lower:
+                    label_suggestions.append('add call')
+                if 'buy' in content_lower or 'groceries' in content_lower or 'purchase' in content_lower:
+                    label_suggestions.append('add errand')
+                if 'organize' in content_lower or 'clean' in content_lower or 'fix' in content_lower:
+                    label_suggestions.append('add chore')
+                if not label_suggestions:
+                    label_suggestions.append('add computer')
+
+                # Location
+                if 'buy' in content_lower or 'groceries' in content_lower or 'store' in content_lower:
+                    label_suggestions.append('add errand')
+                elif 'office' in content_lower or 'desk' in content_lower:
+                    label_suggestions.append('add home')
+                else:
+                    label_suggestions.append('add home')
+
+                suggestion['labels'] = ', '.join(label_suggestions)
+
+                # Energy
+                if 'call' in content_lower or 'quick' in content_lower or 'simple' in content_lower:
+                    suggestion['energy'] = 'l'
+                elif 'organize' in content_lower or 'plan' in content_lower or 'build' in content_lower:
+                    suggestion['energy'] = 'h'
+                else:
+                    suggestion['energy'] = 'm'
+
+                # Duration
+                if 'call' in content_lower or 'quick' in content_lower:
+                    suggestion['duration'] = 's'
+                elif 'organize' in content_lower or 'plan' in content_lower or 'research' in content_lower:
+                    suggestion['duration'] = 'l'
+                else:
+                    suggestion['duration'] = 'm'
+
+                ai_suggestions[task['id']] = suggestion
+
+            # Step 3: Run the main wizard
+            print(f"\n📥 Starting inbox wizard for {len(tasks)} task(s)...\n")
+            wizard_output = run_inbox_wizard(tasks, ai_suggestions)
+
+            # Step 4: Process the wizard output
+            process_result = self.process_wizard_output(wizard_output)
+            process_data = json.loads(process_result)
+
+            if process_data["status"] != "success":
+                return process_result  # Return error as-is
+
+            created_subtasks = process_data['data'].get('created_subtasks', [])
+
+            # Step 5: If subtasks were created, run second phase
+            if created_subtasks:
+                print(f"\n🏷️  Phase 2: Tag approval for {len(created_subtasks)} next action(s)...\n")
+
+                # Generate tag suggestions for subtasks
+                suggest_result = self.suggest_next_action_tags(created_subtasks)
+                suggest_data = json.loads(suggest_result)
+
+                if suggest_data["status"] == "success":
+                    suggestions = suggest_data['data']['suggestions']
+
+                    # Run subtask tag wizard
+                    tag_output = run_subtask_tag_wizard(suggestions)
+
+                    # Process subtask tags
+                    tag_result = self.process_subtask_tags(tag_output)
+                    tag_data = json.loads(tag_result)
+
+                    if tag_data["status"] == "success":
+                        return self._success(
+                            f"✅ Inbox processing complete!\n"
+                            f"   • Processed {process_data['data']['successful']} task(s)\n"
+                            f"   • Created {len(created_subtasks)} next action(s)\n"
+                            f"   • Tagged {tag_data['data']['successful']} subtask(s)\n"
+                            f"   • Moved all to #{process_data['data']['destination_project']}",
+                            data={
+                                "processed_tasks": process_data['data']['successful'],
+                                "created_subtasks": len(created_subtasks),
+                                "tagged_subtasks": tag_data['data']['successful'],
+                                "destination_project": process_data['data']['destination_project']
+                            }
+                        )
+                    else:
+                        return tag_result  # Return error
+                else:
+                    return suggest_result  # Return error
+            else:
+                # No subtasks created, just return main process results
+                return self._success(
+                    f"✅ Inbox processing complete!\n"
+                    f"   • Processed {process_data['data']['successful']} task(s)\n"
+                    f"   • Moved to #{process_data['data']['destination_project']}",
+                    data={
+                        "processed_tasks": process_data['data']['successful'],
+                        "destination_project": process_data['data']['destination_project']
+                    }
+                )
+
+        except Exception as e:
+            return self._error("WizardError", f"Failed to run inbox wizard: {str(e)}")
+
     def process_wizard_output(self, wizard_instructions: str) -> str:
         """
         Process batch task updates from the inbox wizard.
