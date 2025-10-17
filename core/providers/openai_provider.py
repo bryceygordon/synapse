@@ -8,7 +8,7 @@ import os
 import json
 import inspect
 import re
-from typing import get_type_hints, get_origin, get_args, Any
+from typing import get_type_hints, get_origin, get_args, Any, Literal
 
 from openai import OpenAI
 from core.providers.base_provider import BaseProvider, ToolCall, ProviderResponse, TokenUsage
@@ -202,7 +202,7 @@ class OpenAIProvider(BaseProvider):
                 if not param_type:
                     continue
 
-                # Handle generic types like list[str]
+                # Handle generic types like list[str] and Literal["val1", "val2"]
                 origin = get_origin(param_type)
                 args = get_args(param_type)
 
@@ -211,7 +211,11 @@ class OpenAIProvider(BaseProvider):
                     "description": param_descriptions.get(param.name, "No description available.")
                 }
 
-                if origin is list:
+                # Handle Literal types (enums) - CRITICAL FIX for token optimization
+                if origin is Literal:
+                    prop_schema["type"] = "string"
+                    prop_schema["enum"] = list(args)  # Extract enum values from Literal
+                elif origin is list:
                     # It's a list type
                     prop_schema["type"] = "array"
                     if args:
