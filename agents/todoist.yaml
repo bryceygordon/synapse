@@ -59,6 +59,7 @@ tools:
   - list_next_actions        # Show @next tasks
   - schedule_task            # Add due date for planning
   - process_inbox            # Launch interactive inbox processing wizard
+  - review_tasks_without_next_actions  # Review tasks missing next actions
 
   # Flexible Tools (fallback for edge cases)
   - create_task            # When constrained tools don't fit

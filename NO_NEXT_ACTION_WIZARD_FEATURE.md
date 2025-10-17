@@ -1,10 +1,30 @@
 # Enhancement: Interactive Wizard for Tasks Without Next Actions
 
 **Date**: 2025-10-17
-**Status**: 📝 READY TO IMPLEMENT (Matches inbox wizard pattern)
+**Status**: ✅ IMPLEMENTED - Ready to test
 **Feature Request**: Add complete/delete/process options to find_tasks_without_next_actions
 **Current Behavior**: Function only lists tasks, no interaction
 **Desired Behavior**: Two-phase interactive wizard (matches inbox wizard)
+
+---
+
+## ✅ IMPLEMENTATION COMPLETE
+
+**Files Created**:
+1. `core/wizard/no_next_action_wizard.py` - NoNextActionWizard class (Phase 1)
+
+**Files Modified**:
+2. `core/agents/todoist.py` - Added review_tasks_without_next_actions() and helper
+3. `agents/todoist.yaml` - Added tool to list
+
+**What was built**:
+- Phase 1 wizard with (a)dd/(c)omplete/(d)elete/(s)kip/(p)ause/(q)uit options
+- Phase 2 integration (reuses SubtaskTagWizard from inbox wizard)
+- Creates subtasks with ONLY @next label in Phase 1
+- AI suggests tags in Phase 2, user approves/overrides
+- Batch execution of all actions
+
+**Ready for**: Testing and commit
 
 ---
 
@@ -127,14 +147,15 @@ Add `interactive=True` parameter to `find_tasks_without_next_actions()`
 
 ### ✅ TODO LIST
 
-- [ ] **TASK 1**: Create wizard class `NoNextActionWizard` in `core/wizard/no_next_action_wizard.py`
-- [ ] **TASK 2**: Implement interactive prompt with a/c/d/s/p/q options
-- [ ] **TASK 3**: Add `review_tasks_without_next_actions()` method to TodoistAgent
-- [ ] **TASK 4**: Add to tools list in `agents/todoist.yaml`
-- [ ] **TASK 5**: Test the workflow
-- [ ] **TASK 6**: Commit and push
+- [x] **TASK 1**: Create wizard class `NoNextActionWizard` in `core/wizard/no_next_action_wizard.py` ✅
+- [x] **TASK 2**: Implement interactive prompt with a/c/d/s/p/q options ✅
+- [x] **TASK 3**: Add `review_tasks_without_next_actions()` method to TodoistAgent ✅
+- [x] **TASK 4**: Add `_process_no_next_action_review()` helper method ✅
+- [x] **TASK 5**: Add to tools list in `agents/todoist.yaml` ✅
+- [ ] **TASK 6**: Test the workflow
+- [ ] **TASK 7**: Commit and push
 
-**Estimated time**: 25-30 minutes
+**Status**: Implementation complete - Ready to test and commit
 
 ---
 
