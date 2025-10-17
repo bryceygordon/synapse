@@ -1795,28 +1795,32 @@ class TodoistAgent(BaseAgent):
         - Parses label instructions ("add home, remove shed" → API updates)
         - Maps energy/duration codes (h/m/l, s/m/l → actual labels)
         - Creates subtasks for multi-step tasks
+        - Moves all tasks to destination project
         - Batches API calls for efficiency
 
         Args:
             wizard_instructions: Structured output from inbox wizard
 
         Returns:
-            JSON with success/failure counts
+            JSON with success/failure counts and created subtask IDs
 
         Example input:
             ```
+            DESTINATION_PROJECT: processed
+
             task_id: 123456789
             - content: "New content"
             - labels: "add home, add next"
             - due_date: "tomorrow 8am"
             - energy: m
             - duration: l
-            - is_multistep: true
+            - is_simple: false
             - next_action: "Call to confirm"
             ```
         """
         try:
-            # Parse wizard instructions
+            # Parse destination project
+            destination_project = "processed"  # Default
             tasks_to_update = []
             current_task = None
 
@@ -1824,6 +1828,11 @@ class TodoistAgent(BaseAgent):
                 line = line.strip()
 
                 if not line or line.startswith('WIZARD OUTPUT') or line.startswith('Total:'):
+                    continue
+
+                # Parse destination project
+                if line.startswith('DESTINATION_PROJECT:'):
+                    destination_project = line.split(':', 1)[1].strip()
                     continue
 
                 if line.startswith('task_id:'):
@@ -1846,6 +1855,7 @@ class TodoistAgent(BaseAgent):
             # Process each task
             successful = []
             failed = []
+            created_subtasks = []  # Track created subtask IDs for second phase
 
             for task_update in tasks_to_update:
                 task_id = task_update.get('task_id')
@@ -1920,27 +1930,40 @@ class TodoistAgent(BaseAgent):
                     if update_data:
                         self.api.update_task(task_id, **update_data)
 
-                    # 5. Handle multi-step tasks (create subtask with @next)
-                    is_multistep = task_update.get('is_multistep', '').lower() == 'true'
+                    # 5. Handle simple vs multi-step tasks
+                    is_simple = task_update.get('is_simple', '').lower() == 'true'
                     next_action = task_update.get('next_action')
 
-                    if is_multistep and next_action:
-                        # Create subtask with @next label
-                        self.api.add_task(
+                    if not is_simple and next_action:
+                        # Multi-step task - create subtask with @next label ONLY
+                        # Subtask should have NO other tags initially - will be added in second phase
+                        subtask = self.api.add_task(
                             content=next_action,
                             parent_id=task_id,
                             labels=['next']
                         )
-                    elif not is_multistep:
-                        # Simple task - ensure it has @next if not already present
-                        if 'labels' in update_data and 'next' not in update_data['labels']:
-                            update_data['labels'].append('next')
-                            self.api.update_task(task_id, labels=update_data['labels'])
+                        created_subtasks.append({
+                            'subtask_id': subtask.id,
+                            'parent_id': task_id,
+                            'parent_content': task.content,
+                            'subtask_content': next_action
+                        })
+
+                    # Note: Simple tasks already have @next added via wizard's label instructions
 
                     successful.append(task_id)
 
                 except Exception as e:
                     failed.append({'task_id': task_id, 'error': str(e)})
+
+            # Move all successful tasks to destination project
+            if successful:
+                move_result = self.batch_move_tasks(successful, destination_project)
+                move_data = json.loads(move_result).get('data', {})
+
+                # Update summary with move results
+                move_success = move_data.get('successful', 0)
+                move_failed = move_data.get('failed', 0)
 
             # Build summary
             total = len(tasks_to_update)
@@ -1950,6 +1973,10 @@ class TodoistAgent(BaseAgent):
             summary_parts = []
             if success_count > 0:
                 summary_parts.append(f"✅ Processed {success_count} task(s)")
+            if successful:
+                summary_parts.append(f"→ Moved to #{destination_project}")
+            if len(created_subtasks) > 0:
+                summary_parts.append(f"📝 Created {len(created_subtasks)} next action subtask(s)")
             if fail_count > 0:
                 summary_parts.append(f"❌ Failed {fail_count} task(s)")
 
@@ -1961,8 +1988,10 @@ class TodoistAgent(BaseAgent):
                     "total": total,
                     "successful": success_count,
                     "failed": fail_count,
+                    "destination_project": destination_project,
                     "successful_ids": successful,
-                    "failed_details": failed
+                    "failed_details": failed,
+                    "created_subtasks": created_subtasks  # For second phase processing
                 }
             )
 
@@ -2013,6 +2042,275 @@ class TodoistAgent(BaseAgent):
 
         # Otherwise, return as-is and let Todoist parse it
         return date_input
+
+    def suggest_next_action_tags(self, created_subtasks: list[dict]) -> str:
+        """
+        Generate tag suggestions for newly created next action subtasks.
+
+        Takes a list of subtasks (created from multi-step tasks) and uses AI to intuit
+        appropriate tags based on the parent task's context and the subtask content.
+
+        Args:
+            created_subtasks: List of dicts with keys:
+                - subtask_id: ID of the subtask
+                - parent_id: ID of the parent task
+                - parent_content: Content of the parent task
+                - subtask_content: Content of the subtask
+
+        Returns:
+            JSON with batch suggestions for all subtasks
+
+        Example input:
+            [
+                {
+                    'subtask_id': '123',
+                    'parent_id': '456',
+                    'parent_content': 'Plan birthday party',
+                    'subtask_content': 'Call venue to check availability'
+                }
+            ]
+
+        Example output:
+            {
+                "status": "success",
+                "data": {
+                    "suggestions": [
+                        {
+                            "subtask_id": "123",
+                            "subtask_content": "Call venue to check availability",
+                            "parent_content": "Plan birthday party",
+                            "suggested_labels": "add call, add errand",
+                            "suggested_energy": "l",
+                            "suggested_duration": "s"
+                        }
+                    ]
+                }
+            }
+        """
+        try:
+            if not created_subtasks:
+                return self._error("InvalidInput", "No subtasks provided")
+
+            # Fetch full parent task details for better context
+            suggestions = []
+
+            for subtask_info in created_subtasks:
+                subtask_id = subtask_info['subtask_id']
+                parent_id = subtask_info['parent_id']
+                subtask_content = subtask_info['subtask_content']
+                parent_content = subtask_info['parent_content']
+
+                # Get parent task with full labels for context
+                parent_task = self.api.get_task(parent_id)
+                parent_labels = parent_task.labels
+
+                # Simple heuristic-based tag suggestion
+                # In a full implementation, this would call an AI model
+                # For now, we'll use simple keyword matching
+
+                suggested_labels_list = []
+                suggested_energy = 'm'  # Default medium
+                suggested_duration = 's'  # Default short for next actions
+
+                content_lower = subtask_content.lower()
+
+                # Activity detection
+                if any(word in content_lower for word in ['call', 'phone', 'ring']):
+                    suggested_labels_list.append('call')
+                elif any(word in content_lower for word in ['email', 'send', 'write to']):
+                    suggested_labels_list.append('email')
+                elif any(word in content_lower for word in ['research', 'look up', 'find', 'search']):
+                    suggested_labels_list.append('computer')
+                elif any(word in content_lower for word in ['buy', 'pick up', 'get', 'purchase']):
+                    suggested_labels_list.append('errand')
+                elif any(word in content_lower for word in ['fix', 'repair', 'clean', 'organize']):
+                    suggested_labels_list.append('chore')
+                else:
+                    # Default to computer for generic tasks
+                    suggested_labels_list.append('computer')
+
+                # Location detection (inherit from parent if possible)
+                location_labels = {'home', 'house', 'yard', 'errand', 'bunnings', 'parents'}
+                parent_location = location_labels.intersection(set(parent_labels))
+
+                if parent_location:
+                    # Inherit location from parent
+                    suggested_labels_list.append(list(parent_location)[0])
+                elif 'errand' in suggested_labels_list or 'bunnings' in content_lower:
+                    suggested_labels_list.append('errand')
+                else:
+                    # Default to home for most tasks
+                    suggested_labels_list.append('home')
+
+                # Energy intuition
+                if any(word in content_lower for word in ['call', 'email', 'quick', 'check']):
+                    suggested_energy = 'l'  # Low energy
+                elif any(word in content_lower for word in ['plan', 'organize', 'build', 'fix']):
+                    suggested_energy = 'h'  # High energy
+                else:
+                    suggested_energy = 'm'  # Medium energy
+
+                # Duration intuition
+                if any(word in content_lower for word in ['quick', 'check', 'call', 'email']):
+                    suggested_duration = 's'  # Short
+                elif any(word in content_lower for word in ['plan', 'research', 'organize', 'complete']):
+                    suggested_duration = 'm'  # Medium
+                else:
+                    suggested_duration = 's'  # Default short for next actions
+
+                # Format labels as natural language instructions
+                # Remove duplicates while preserving order
+                seen = set()
+                unique_labels = []
+                for label in suggested_labels_list:
+                    if label not in seen:
+                        seen.add(label)
+                        unique_labels.append(label)
+
+                suggested_labels_str = ', '.join(f"add {label}" for label in unique_labels)
+
+                suggestions.append({
+                    'subtask_id': subtask_id,
+                    'subtask_content': subtask_content,
+                    'parent_content': parent_content,
+                    'parent_labels': parent_labels,
+                    'suggested_labels': suggested_labels_str,
+                    'suggested_energy': suggested_energy,
+                    'suggested_duration': suggested_duration
+                })
+
+            return self._success(
+                f"Generated tag suggestions for {len(suggestions)} subtask(s)",
+                data={'suggestions': suggestions}
+            )
+
+        except Exception as e:
+            return self._error("TodoistAPIError", f"Failed to suggest tags: {str(e)}")
+
+    def process_subtask_tags(self, tag_instructions: str) -> str:
+        """
+        Process subtask tag updates from the subtask tag wizard.
+
+        Parses wizard output and applies tag updates to subtasks.
+
+        Args:
+            tag_instructions: Structured output from subtask tag wizard
+
+        Returns:
+            JSON with success/failure counts
+
+        Example input:
+            ```
+            SUBTASK_TAG_UPDATES
+
+            subtask_id: 123456789
+            - labels: "add call, add home"
+            - energy: l
+            - duration: s
+            ```
+        """
+        try:
+            subtasks_to_update = []
+            current_subtask = None
+
+            for line in tag_instructions.strip().split('\n'):
+                line = line.strip()
+
+                if not line or line.startswith('SUBTASK_TAG_UPDATES') or line.startswith('Total:'):
+                    continue
+
+                if line.startswith('subtask_id:'):
+                    if current_subtask:
+                        subtasks_to_update.append(current_subtask)
+                    current_subtask = {'subtask_id': line.split(':', 1)[1].strip()}
+                elif line.startswith('- ') and current_subtask:
+                    key_value = line[2:].split(':', 1)
+                    if len(key_value) == 2:
+                        key = key_value[0].strip()
+                        value = key_value[1].strip().strip('"')
+                        current_subtask[key] = value
+
+            if current_subtask:
+                subtasks_to_update.append(current_subtask)
+
+            if not subtasks_to_update:
+                return self._error("InvalidInput", "No valid subtask updates found")
+
+            # Process each subtask
+            successful = []
+            failed = []
+
+            for subtask_update in subtasks_to_update:
+                subtask_id = subtask_update.get('subtask_id')
+
+                try:
+                    # Get current subtask to preserve existing labels (@next)
+                    subtask = self.api.get_task(subtask_id)
+
+                    # Start with existing labels (should have @next)
+                    labels = set(subtask.labels)
+
+                    # Energy mapping
+                    energy_map = {'h': 'highenergy', 'm': 'medenergy', 'l': 'lowenergy'}
+                    labels -= {'highenergy', 'medenergy', 'lowenergy'}
+                    if 'energy' in subtask_update:
+                        energy_label = energy_map.get(subtask_update['energy'].lower())
+                        if energy_label:
+                            labels.add(energy_label)
+
+                    # Duration mapping
+                    duration_map = {'s': 'short', 'm': 'medium', 'l': 'long'}
+                    labels -= {'short', 'medium', 'long'}
+                    if 'duration' in subtask_update:
+                        duration_label = duration_map.get(subtask_update['duration'].lower())
+                        if duration_label:
+                            labels.add(duration_label)
+
+                    # Natural language label updates
+                    if 'labels' in subtask_update:
+                        label_instructions = subtask_update['labels'].lower()
+                        for instruction in label_instructions.split(','):
+                            instruction = instruction.strip()
+                            if instruction.startswith('add '):
+                                label_to_add = instruction[4:].strip().lstrip('@')
+                                labels.add(label_to_add)
+                            elif instruction.startswith('remove '):
+                                label_to_remove = instruction[7:].strip().lstrip('@')
+                                labels.discard(label_to_remove)
+
+                    # Update the subtask
+                    self.api.update_task(subtask_id, labels=list(labels))
+                    successful.append(subtask_id)
+
+                except Exception as e:
+                    failed.append({'subtask_id': subtask_id, 'error': str(e)})
+
+            # Build summary
+            total = len(subtasks_to_update)
+            success_count = len(successful)
+            fail_count = len(failed)
+
+            summary_parts = []
+            if success_count > 0:
+                summary_parts.append(f"✅ Tagged {success_count} subtask(s)")
+            if fail_count > 0:
+                summary_parts.append(f"❌ Failed {fail_count} subtask(s)")
+
+            summary = " | ".join(summary_parts)
+
+            return self._success(
+                summary,
+                data={
+                    "total": total,
+                    "successful": success_count,
+                    "failed": fail_count,
+                    "successful_ids": successful,
+                    "failed_details": failed
+                }
+            )
+
+        except Exception as e:
+            return self._error("TodoistAPIError", f"Failed to process subtask tags: {str(e)}")
 
     def suggest_task_formatting(self, task_id: str) -> str:
         """
