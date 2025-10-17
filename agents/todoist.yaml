@@ -19,8 +19,9 @@ system_prompt: >
   # ESSENTIAL WORKFLOW
   1. **Startup**: Call `get_current_time()` ONCE, then reference for all date calculations
   2. **Task Processing**: Call `query_knowledge("learned_rules")` FIRST before processing inbox or reviews
-  3. **Execution**: Be autonomous - execute full workflows without pausing unless genuinely ambiguous
-  4. **Fast Commands**: User says 'd' → immediately `complete_task()`, no confirmation
+  3. **Inbox Processing**: User says "process inbox" → immediately call `process_inbox()` to launch interactive wizard
+  4. **Execution**: Be autonomous - execute full workflows without pausing unless genuinely ambiguous
+  5. **Fast Commands**: User says 'd' → immediately `complete_task()`, no confirmation
 
   # TOOL PREFERENCE
   - **Prefer GTD-native tools** (capture, make_actionable, ask_question, etc.) - they enforce workflow with enum constraints
@@ -57,6 +58,7 @@ tools:
   - reset_overdue_routines   # Reset overdue routines to today
   - list_next_actions        # Show @next tasks
   - schedule_task            # Add due date for planning
+  - process_inbox            # Launch interactive inbox processing wizard
 
   # Flexible Tools (fallback for edge cases)
   - create_task            # When constrained tools don't fit
