@@ -1997,8 +1997,10 @@ class TodoistAgent(BaseAgent):
             ```
         """
         try:
-            # Parse destination project
+            # Parse destination project and special task lists
             destination_project = "processed"  # Default
+            tasks_to_complete = []
+            tasks_to_delete = []
             tasks_to_update = []
             current_task = None
 
@@ -2011,6 +2013,20 @@ class TodoistAgent(BaseAgent):
                 # Parse destination project
                 if line.startswith('DESTINATION_PROJECT:'):
                     destination_project = line.split(':', 1)[1].strip()
+                    continue
+
+                # Parse tasks to complete
+                if line.startswith('TASKS_TO_COMPLETE:'):
+                    complete_str = line.split(':', 1)[1].strip()
+                    # Parse list format: ['id1', 'id2'] -> ['id1', 'id2']
+                    tasks_to_complete = eval(complete_str) if complete_str != '[]' else []
+                    continue
+
+                # Parse tasks to delete
+                if line.startswith('TASKS_TO_DELETE:'):
+                    delete_str = line.split(':', 1)[1].strip()
+                    # Parse list format: ['id1', 'id2'] -> ['id1', 'id2']
+                    tasks_to_delete = eval(delete_str) if delete_str != '[]' else []
                     continue
 
                 if line.startswith('task_id:'):
@@ -2143,8 +2159,40 @@ class TodoistAgent(BaseAgent):
                 move_success = move_data.get('successful', 0)
                 move_failed = move_data.get('failed', 0)
 
+            # Handle tasks marked for completion
+            completed_count = 0
+            if tasks_to_complete:
+                print(f"\n✅ Completing {len(tasks_to_complete)} task(s)...")
+                for task_id in tasks_to_complete:
+                    try:
+                        result = self.complete_task(task_id)
+                        result_data = json.loads(result)
+                        if result_data['status'] == 'success':
+                            print(f"  ✓ Completed task {task_id}")
+                            completed_count += 1
+                        else:
+                            print(f"  ❌ Failed to complete {task_id}: {result_data.get('message', 'Unknown error')}")
+                    except Exception as e:
+                        print(f"  ❌ Error completing {task_id}: {str(e)}")
+
+            # Handle tasks marked for deletion
+            deleted_count = 0
+            if tasks_to_delete:
+                print(f"\n🗑️  Deleting {len(tasks_to_delete)} task(s)...")
+                for task_id in tasks_to_delete:
+                    try:
+                        result = self.delete_task(task_id)
+                        result_data = json.loads(result)
+                        if result_data['status'] == 'success':
+                            print(f"  ✓ Deleted task {task_id}")
+                            deleted_count += 1
+                        else:
+                            print(f"  ❌ Failed to delete {task_id}: {result_data.get('message', 'Unknown error')}")
+                    except Exception as e:
+                        print(f"  ❌ Error deleting {task_id}: {str(e)}")
+
             # Build summary
-            total = len(tasks_to_update)
+            total = len(tasks_to_update) + len(tasks_to_complete) + len(tasks_to_delete)
             success_count = len(successful)
             fail_count = len(failed)
 
@@ -2153,6 +2201,10 @@ class TodoistAgent(BaseAgent):
                 summary_parts.append(f"✅ Processed {success_count} task(s)")
             if successful:
                 summary_parts.append(f"→ Moved to #{destination_project}")
+            if completed_count > 0:
+                summary_parts.append(f"✔️  Completed {completed_count} task(s)")
+            if deleted_count > 0:
+                summary_parts.append(f"🗑️  Deleted {deleted_count} task(s)")
             if len(created_subtasks) > 0:
                 summary_parts.append(f"📝 Created {len(created_subtasks)} next action subtask(s)")
             if fail_count > 0:
@@ -2165,6 +2217,8 @@ class TodoistAgent(BaseAgent):
                 data={
                     "total": total,
                     "successful": success_count,
+                    "completed": completed_count,
+                    "deleted": deleted_count,
                     "failed": fail_count,
                     "destination_project": destination_project,
                     "successful_ids": successful,

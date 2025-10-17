@@ -51,6 +51,8 @@ class InboxWizard:
         self.current_index = 0
         self.destination_project = "processed"  # Default destination
         self.created_subtasks: List[str] = []  # Track created next action subtasks
+        self.tasks_to_complete: List[str] = []  # Track tasks to mark complete
+        self.tasks_to_delete: List[str] = []  # Track tasks to delete
 
     def run(self) -> str:
         """
@@ -89,6 +91,26 @@ class InboxWizard:
 
             # Get AI suggestion for this task
             suggestion = self.ai_suggestions.get(task_id, {})
+
+            # First step: Ask if user wants to complete/delete/skip/pause OR process normally
+            print(f"\n  (c)omplete | (d)elete | (s)kip | (p)ause | ENTER to process: ", end="")
+            first_action = input().strip().lower()
+
+            if first_action == 'c':
+                print("  ✓ Marked for completion")
+                self.tasks_to_complete.append(task_id)
+                continue
+            elif first_action == 'd':
+                print("  ✓ Marked for deletion")
+                self.tasks_to_delete.append(task_id)
+                continue
+            elif first_action == 's':
+                print("  ⊘ Skipped")
+                continue
+            elif first_action == 'p' or first_action == 'pause':
+                return self._generate_instructions()
+
+            # If we reach here, user wants to process normally (pressed ENTER or anything else)
 
             # Initialize update object
             update = WizardTaskUpdate(task_id=task_id)
@@ -264,6 +286,9 @@ class InboxWizard:
         ```
         DESTINATION_PROJECT: processed
 
+        TASKS_TO_COMPLETE: [123, 456]
+        TASKS_TO_DELETE: [789]
+
         task_id: 123456789
         - content: "New content"
         - description: "New description"
@@ -278,12 +303,18 @@ class InboxWizard:
         Returns:
             Formatted instruction string
         """
-        if not self.updates:
+        if not self.updates and not self.tasks_to_complete and not self.tasks_to_delete:
             return "No updates to process."
 
         instructions = []
         instructions.append("WIZARD OUTPUT - Process these task updates:\n")
         instructions.append(f"DESTINATION_PROJECT: {self.destination_project}\n")
+
+        # Add complete/delete lists if present
+        if self.tasks_to_complete:
+            instructions.append(f"TASKS_TO_COMPLETE: {self.tasks_to_complete}\n")
+        if self.tasks_to_delete:
+            instructions.append(f"TASKS_TO_DELETE: {self.tasks_to_delete}\n")
 
         for update in self.updates:
             instructions.append(f"task_id: {update.task_id}")
