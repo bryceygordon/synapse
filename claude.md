@@ -188,34 +188,9 @@ These aliases are defined in `~/.zshrc` and handle venv activation automatically
 
 This happens **before** you type anything, so the agent is ready immediately.
 
-### User-First Interactive Wizards
+### Beautiful CLI Output
 
-The `TodoistAgent` features powerful interactive wizards for processing your inbox and finding tasks that are missing next actions. These wizards have been refactored to a **user-first** model.
-
-**Old Workflow:** AI suggests changes -> User confirms/edits.
-**New Workflow:** User provides shorthand -> AI interprets and executes.
-
-This new approach makes processing tasks much faster, turning the wizard into a rapid data entry tool.
-
-#### Shorthand Syntax
-
-When using the `process` option in either wizard, you will be prompted for an instruction string. The AI is trained to parse this string based on the following shorthand:
-
-- **Priorities:** `p1`, `p2`, `p3`, `p4`
-- **Due Dates:** `due <natural language date>` (e.g., `due tomorrow 10am`, `due next friday`)
-- **Description:** `desc:"<your description>"`
-- **Labels:** Any other word is treated as a potential tag. The AI will match it against a list of preferred tags and aliases (e.g., `high` -> `highenergy`, `computer` -> `@computer`).
-
-**Example Instruction:**
-`high long computer p2 due tomorrow 5pm desc:"Call them about the new proposal."`
-
-This will be interpreted by the AI to update the task with the `@highenergy`, `@long`, and `@computer` labels, set it to priority 2, schedule it for tomorrow at 5pm, and add the specified description.
-
-#### Confirmation Step
-
-After the wizard is complete, the AI processes all your instructions in a batch. It will then present a summary of all the changes it has made and ask for your final confirmation before the process is considered complete.
-
-
+Synapse uses **Rich** library for gorgeous terminal output:
 
 **Features:**
 - 🎨 **Syntax-highlighted JSON** - Tool results displayed with color-coded JSON

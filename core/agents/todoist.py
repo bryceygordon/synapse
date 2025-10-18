@@ -1771,36 +1771,247 @@ class TodoistAgent(BaseAgent):
 
     def review_tasks_without_next_actions(self) -> str:
         """
-        Launch the rich, interactive wizard to find and fix tasks without a next action.
+        Launch interactive two-phase wizard to review and fix tasks without next actions.
+
+        This is a TWO-PHASE workflow (matches inbox wizard pattern):
+
+        Phase 1: Quick review
+        - Finds all tasks in processed project without @next label
+        - Presents each task with options:
+          * (a) Add next action - just type action text, continue
+          * (c) Complete task
+          * (d) Delete task
+          * (s) Skip task
+          * (p) Pause and save progress
+          * (q) Quit without saving
+        - Creates subtasks with ONLY @next label (no other tags yet)
+        - Executes complete/delete actions
+
+        Phase 2: Tag approval (only if next actions were added)
+        - AI generates tag suggestions for all created next actions
+        - User reviews each next action with parent context
+        - Can approve (ENTER) or override AI suggestions
+        - Batch applies all tag updates
+
+        Returns:
+            Success message with summary of all actions taken
         """
         try:
-            # 1. Find tasks without next actions
+            from core.wizard.no_next_action_wizard import run_no_next_action_wizard
+
+            # Step 1: Find tasks without next actions
             result = self.find_tasks_without_next_actions()
             result_data = json.loads(result)
 
             if result_data["status"] != "success":
-                return result
+                return result  # Return error as-is
 
             tasks = result_data["data"]["tasks"]
 
             if not tasks:
                 return self._success("✓ All tasks in processed have next actions")
 
-            # 2. Run the new rich wizard
-            from core.wizard.no_next_action_wizard import run_no_next_action_wizard
-            actions = run_no_next_action_wizard(tasks)
+            # Step 2: Run Phase 1 wizard
+            print(f"\n🔍 Phase 1: Reviewing {len(tasks)} task(s)...\n")
+            wizard_output = run_no_next_action_wizard(tasks)
 
-            if not actions:
-                return self._success("No actions taken.")
+            if wizard_output == "CANCELLED":
+                return self._success("❌ Review cancelled")
 
-            # 3. Pass actions to the AI for interpretation and execution
-            return self.interpret_and_execute_actions(actions)
+            if wizard_output == "NO_ACTIONS":
+                return self._success("⊘ No actions taken")
+
+            # Step 3: Process Phase 1 output (create subtasks, complete, delete)
+            phase1_result = self._process_no_next_action_review(wizard_output)
+            phase1_data = json.loads(phase1_result)
+
+            if phase1_data["status"] != "success":
+                return phase1_result  # Return error
+
+            created_subtasks = phase1_data['data'].get('created_subtasks', [])
+
+            # Step 4: If subtasks were created, run Phase 2 (tag approval)
+            if created_subtasks:
+                print(f"\n🏷️  Phase 2: Tag approval for {len(created_subtasks)} next action(s)...\n")
+
+                # Generate tag suggestions
+                suggest_result = self.suggest_next_action_tags(created_subtasks)
+                suggest_data = json.loads(suggest_result)
+
+                if suggest_data["status"] == "success":
+                    from core.wizard.inbox_wizard import run_subtask_tag_wizard
+                    suggestions = suggest_data['data']['suggestions']
+
+                    # Run tag wizard (reuses SubtaskTagWizard from inbox wizard)
+                    tag_output = run_subtask_tag_wizard(suggestions)
+
+                    # Apply tags
+                    tag_result = self.process_subtask_tags(tag_output)
+                    tag_data = json.loads(tag_result)
+
+                    if tag_data["status"] == "success":
+                        return self._success(
+                            f"✅ Review complete!\n"
+                            f"   • Added {phase1_data['data']['added_next_actions']} next action(s)\n"
+                            f"   • Tagged {tag_data['data']['successful']} next action(s)\n"
+                            f"   • Completed {phase1_data['data']['completed']} task(s)\n"
+                            f"   • Deleted {phase1_data['data']['deleted']} task(s)",
+                            data={
+                                "added_next_actions": phase1_data['data']['added_next_actions'],
+                                "tagged": tag_data['data']['successful'],
+                                "completed": phase1_data['data']['completed'],
+                                "deleted": phase1_data['data']['deleted']
+                            }
+                        )
+                    else:
+                        return tag_result  # Return error
+                else:
+                    return suggest_result  # Return error
+            else:
+                # No subtasks created, just return Phase 1 results
+                return phase1_result
 
         except Exception as e:
             return self._error("WizardError", f"Failed to run review wizard: {str(e)}")
 
+    def _process_no_next_action_review(self, wizard_output: str) -> str:
+        """
+        Process the output from no-next-action review wizard (Phase 1).
 
+        Args:
+            wizard_output: Structured instructions from wizard
 
+        Returns:
+            JSON with success/failure summary and created subtasks for Phase 2
+        """
+        try:
+            # Parse wizard output
+            tasks_to_add_next = []
+            tasks_to_complete = []
+            tasks_to_delete = []
+            current_task = None
+
+            for line in wizard_output.strip().split('\n'):
+                line = line.strip()
+
+                if not line or line.startswith('NO_NEXT_ACTION') or line.startswith('Total'):
+                    continue
+
+                if line == 'TASKS_TO_ADD_NEXT_ACTION:':
+                    continue
+
+                if line.startswith('TASKS_TO_COMPLETE:'):
+                    complete_str = line.split(':', 1)[1].strip()
+                    tasks_to_complete = eval(complete_str) if complete_str != '[]' else []
+                    continue
+
+                if line.startswith('TASKS_TO_DELETE:'):
+                    delete_str = line.split(':', 1)[1].strip()
+                    tasks_to_delete = eval(delete_str) if delete_str != '[]' else []
+                    continue
+
+                if line.startswith('task_id:'):
+                    if current_task:
+                        tasks_to_add_next.append(current_task)
+                    current_task = {'task_id': line.split(':', 1)[1].strip()}
+                elif line.startswith('- next_action:') and current_task:
+                    next_action = line.split(':', 1)[1].strip().strip('"')
+                    current_task['next_action'] = next_action
+
+            if current_task:
+                tasks_to_add_next.append(current_task)
+
+            # Execute actions
+            added_count = 0
+            completed_count = 0
+            deleted_count = 0
+            created_subtasks = []  # Track for Phase 2
+
+            # Add next actions (Phase 1: Create with ONLY @next label)
+            if tasks_to_add_next:
+                print(f"\n📝 Adding next actions to {len(tasks_to_add_next)} task(s)...")
+                for task_info in tasks_to_add_next:
+                    try:
+                        task_id = task_info['task_id']
+                        next_action = task_info['next_action']
+
+                        # Get parent task for context
+                        parent_task = self.api.get_task(task_id)
+
+                        # Create subtask with ONLY @next label (tags will be added in Phase 2)
+                        subtask = self.api.add_task(
+                            content=next_action,
+                            parent_id=task_id,
+                            labels=['next']
+                        )
+
+                        # Track for Phase 2 tagging
+                        created_subtasks.append({
+                            'subtask_id': subtask.id,
+                            'parent_id': task_id,
+                            'parent_content': parent_task.content,
+                            'subtask_content': next_action
+                        })
+
+                        print(f"  ✓ Added next action to {task_id}: {next_action}")
+                        added_count += 1
+                    except Exception as e:
+                        print(f"  ❌ Failed to add next action to {task_id}: {str(e)}")
+
+            # Complete tasks
+            if tasks_to_complete:
+                print(f"\n✅ Completing {len(tasks_to_complete)} task(s)...")
+                for task_id in tasks_to_complete:
+                    try:
+                        result = self.complete_task(task_id)
+                        result_data = json.loads(result)
+                        if result_data['status'] == 'success':
+                            print(f"  ✓ Completed task {task_id}")
+                            completed_count += 1
+                        else:
+                            print(f"  ❌ Failed to complete {task_id}: {result_data.get('message', 'Unknown error')}")
+                    except Exception as e:
+                        print(f"  ❌ Error completing {task_id}: {str(e)}")
+
+            # Delete tasks
+            if tasks_to_delete:
+                print(f"\n🗑️  Deleting {len(tasks_to_delete)} task(s)...")
+                for task_id in tasks_to_delete:
+                    try:
+                        result = self.delete_task(task_id)
+                        result_data = json.loads(result)
+                        if result_data['status'] == 'success':
+                            print(f"  ✓ Deleted task {task_id}")
+                            deleted_count += 1
+                        else:
+                            print(f"  ❌ Failed to delete {task_id}: {result_data.get('message', 'Unknown error')}")
+                    except Exception as e:
+                        print(f"  ❌ Error deleting {task_id}: {str(e)}")
+
+            # Build summary
+            summary_parts = []
+            if added_count > 0:
+                summary_parts.append(f"📝 Added {added_count} next action(s)")
+            if completed_count > 0:
+                summary_parts.append(f"✔️  Completed {completed_count} task(s)")
+            if deleted_count > 0:
+                summary_parts.append(f"🗑️  Deleted {deleted_count} task(s)")
+
+            summary = " | ".join(summary_parts) if summary_parts else "No actions taken"
+
+            return self._success(
+                f"✅ Phase 1 complete! {summary}",
+                data={
+                    "added_next_actions": added_count,
+                    "completed": completed_count,
+                    "deleted": deleted_count,
+                    "total_actions": added_count + completed_count + deleted_count,
+                    "created_subtasks": created_subtasks  # For Phase 2 processing
+                }
+            )
+
+        except Exception as e:
+            return self._error("ProcessingError", f"Failed to process review output: {str(e)}")
 
     def schedule_task(self, task_id: str, date: str) -> str:
         """
@@ -1821,84 +2032,181 @@ class TodoistAgent(BaseAgent):
 
     def process_inbox(self) -> str:
         """
-        Launch the rich, interactive wizard to process inbox tasks.
+        Launch the interactive inbox processing wizard.
 
-        This new workflow is user-first:
-        1. It fetches tasks from the "Inbox".
-        2. It launches the rich wizard for rapid, shorthand-based data entry.
-        3. It passes the collected user instructions to the AI for interpretation and execution.
-        4. It asks for user confirmation before finalizing changes.
+        This wizard guides you through processing all inbox tasks with AI suggestions,
+        then applies all changes in batch. This is a two-phase workflow:
+
+        Phase 1: Main wizard
+        - Review and process each inbox task interactively
+        - Accept or override AI suggestions for tags, energy, duration
+        - Distinguish between simple tasks and multi-step tasks
+        - Batch move all tasks to destination project
+
+        Phase 2: Subtask tag approval (if multi-step tasks created)
+        - Review AI-suggested tags for next action subtasks
+        - Approve or override suggestions
+        - Apply tags in batch
+
+        Returns:
+            Success message with summary of processed tasks
         """
         try:
-            # 1. Get tasks from Inbox
-            tasks_result = self.list_tasks(project_name="Inbox", sort_by="created_asc")
-            tasks_data = json.loads(tasks_result)
+            from core.wizard.inbox_wizard import run_inbox_wizard, run_subtask_tag_wizard
 
-            if tasks_data.get("status") != "success":
-                return tasks_result
+            # Step 1: Get inbox tasks sorted by creation date (newest first)
+            result = self.list_tasks(project_name="Inbox", sort_by="created_desc")
+            result_data = json.loads(result)
 
-            tasks = tasks_data.get("data", {}).get("tasks", [])
-            if not tasks:
-                return self._success("✅ Inbox is empty!")
+            if result_data["status"] != "success":
+                return self._error("InboxError", f"Failed to fetch inbox tasks: {result_data.get('message', 'Unknown error')}")
 
-            # 2. Run the new rich wizard
-            from core.wizard.inbox_wizard import run_inbox_wizard
-            actions = run_inbox_wizard(tasks)
+            tasks_data = result_data["data"]["tasks"]
 
-            if not actions:
-                return self._success("No actions taken.")
+            if not tasks_data:
+                return self._success("✓ Inbox is empty - nothing to process")
 
-            # 3. Pass actions to the AI for interpretation and execution
-            return self.interpret_and_execute_actions(actions)
+            # Get full task details for wizard
+            tasks = []
+            for task_data in tasks_data:
+                task_full = self.api.get_task(task_data["id"])
+                tasks.append({
+                    'id': task_full.id,
+                    'content': task_full.content,
+                    'description': task_full.description or ''
+                })
+
+            # Step 2: Generate AI suggestions for all tasks
+            ai_suggestions = {}
+
+            for task in tasks:
+                content_lower = task['content'].lower()
+
+                # Simple heuristic-based suggestions
+                suggestion = {}
+
+                # Content reformatting (if needed)
+                if len(task['content']) > 50 or ',' in task['content']:
+                    words = task['content'].split()
+                    if len(words) > 5:
+                        suggestion['content'] = ' '.join(words[:5])
+
+                # Determine if simple or multi-step
+                multi_step_keywords = ['plan', 'organize', 'research', 'build', 'create', 'setup', 'set up']
+                is_multi_step = any(keyword in content_lower for keyword in multi_step_keywords)
+                suggestion['is_simple'] = not is_multi_step
+
+                # Next action for multi-step
+                if is_multi_step:
+                    if 'plan' in content_lower or 'research' in content_lower:
+                        suggestion['next_action'] = "Research and gather information"
+                    elif 'organize' in content_lower:
+                        suggestion['next_action'] = "Identify what needs organizing"
+                    elif 'setup' in content_lower or 'set up' in content_lower:
+                        suggestion['next_action'] = "Determine setup requirements"
+
+                # Labels - context/activity
+                label_suggestions = []
+                if 'call' in content_lower or 'phone' in content_lower:
+                    label_suggestions.append('add call')
+                if 'buy' in content_lower or 'groceries' in content_lower or 'purchase' in content_lower:
+                    label_suggestions.append('add errand')
+                if 'organize' in content_lower or 'clean' in content_lower or 'fix' in content_lower:
+                    label_suggestions.append('add chore')
+                if not label_suggestions:
+                    label_suggestions.append('add computer')
+
+                # Location
+                if 'buy' in content_lower or 'groceries' in content_lower or 'store' in content_lower:
+                    label_suggestions.append('add errand')
+                elif 'office' in content_lower or 'desk' in content_lower:
+                    label_suggestions.append('add home')
+                else:
+                    label_suggestions.append('add home')
+
+                suggestion['labels'] = ', '.join(label_suggestions)
+
+                # Energy
+                if 'call' in content_lower or 'quick' in content_lower or 'simple' in content_lower:
+                    suggestion['energy'] = 'l'
+                elif 'organize' in content_lower or 'plan' in content_lower or 'build' in content_lower:
+                    suggestion['energy'] = 'h'
+                else:
+                    suggestion['energy'] = 'm'
+
+                # Duration
+                if 'call' in content_lower or 'quick' in content_lower:
+                    suggestion['duration'] = 's'
+                elif 'organize' in content_lower or 'plan' in content_lower or 'research' in content_lower:
+                    suggestion['duration'] = 'l'
+                else:
+                    suggestion['duration'] = 'm'
+
+                ai_suggestions[task['id']] = suggestion
+
+            # Step 3: Run the main wizard
+            print(f"\n📥 Starting inbox wizard for {len(tasks)} task(s)...\n")
+            wizard_output = run_inbox_wizard(tasks, ai_suggestions)
+
+            # Step 4: Process the wizard output
+            process_result = self.process_wizard_output(wizard_output)
+            process_data = json.loads(process_result)
+
+            if process_data["status"] != "success":
+                return process_result  # Return error as-is
+
+            created_subtasks = process_data['data'].get('created_subtasks', [])
+
+            # Step 5: If subtasks were created, run second phase
+            if created_subtasks:
+                print(f"\n🏷️  Phase 2: Tag approval for {len(created_subtasks)} next action(s)...\n")
+
+                # Generate tag suggestions for subtasks
+                suggest_result = self.suggest_next_action_tags(created_subtasks)
+                suggest_data = json.loads(suggest_result)
+
+                if suggest_data["status"] == "success":
+                    suggestions = suggest_data['data']['suggestions']
+
+                    # Run subtask tag wizard
+                    tag_output = run_subtask_tag_wizard(suggestions)
+
+                    # Process subtask tags
+                    tag_result = self.process_subtask_tags(tag_output)
+                    tag_data = json.loads(tag_result)
+
+                    if tag_data["status"] == "success":
+                        return self._success(
+                            f"✅ Inbox processing complete!\n"
+                            f"   • Processed {process_data['data']['successful']} task(s)\n"
+                            f"   • Created {len(created_subtasks)} next action(s)\n"
+                            f"   • Tagged {tag_data['data']['successful']} subtask(s)\n"
+                            f"   • Moved all to #{process_data['data']['destination_project']}",
+                            data={
+                                "processed_tasks": process_data['data']['successful'],
+                                "created_subtasks": len(created_subtasks),
+                                "tagged_subtasks": tag_data['data']['successful'],
+                                "destination_project": process_data['data']['destination_project']
+                            }
+                        )
+                    else:
+                        return tag_result  # Return error
+                else:
+                    return suggest_result  # Return error
+            else:
+                # No subtasks created, just return main process results
+                return self._success(
+                    f"✅ Inbox processing complete!\n"
+                    f"   • Processed {process_data['data']['successful']} task(s)\n"
+                    f"   • Moved to #{process_data['data']['destination_project']}",
+                    data={
+                        "processed_tasks": process_data['data']['successful'],
+                        "destination_project": process_data['data']['destination_project']
+                    }
+                )
 
         except Exception as e:
             return self._error("WizardError", f"Failed to run inbox wizard: {str(e)}")
-
-    def interpret_and_execute_actions(self, actions: list[dict]) -> str:
-        """
-        Takes a list of actions from a wizard, prompts the AI to interpret them,
-        executes the resulting tool calls, and asks for user confirmation.
-        """
-        if not actions:
-            return self._success("No actions to interpret.")
-
-        # This is a placeholder for the full implementation of the AI interpretation
-        # and confirmation loop. For now, we will just print the actions.
-        
-        # In a real implementation, you would:
-        # 1. Construct a detailed prompt for the LLM, including the actions.
-        # 2. Send the prompt to the LLM and get back a list of tool calls.
-        # 3. Execute the tool calls.
-        # 4. Present a summary of the changes to the user.
-        # 5. Ask for confirmation.
-
-        action_summary = json.dumps(actions, indent=2)
-        print("The following actions were generated by the wizard and are ready for AI interpretation:")
-        print(action_summary)
-
-        # Here we would call the LLM. For now, we'll simulate that.
-        print("\n🤖 AI is interpreting the actions and generating tool calls...")
-
-        # Simulate executing tool calls
-        print("\n⚙️ Executing tool calls...")
-        for action in actions:
-            if action['action'] == 'complete':
-                self.complete_task(action['task_id'])
-            elif action['action'] == 'delete':
-                self.delete_task(action['task_id'])
-            elif action['action'] == 'rename':
-                self.update_task(action['task_id'], content=action['new_content'])
-            # Add more simulation for process_simple and process_multistep if needed
-
-        print("\n📊 All actions have been executed.")
-
-        # Confirmation step
-        print("\nPlease review the changes in your Todoist application.")
-        # In a real scenario, we would present a summary of changes here.
-        
-        # For now, we'll just return a success message.
-        return self._success("Batch processing complete. Please verify the changes.")
-
 
     def process_wizard_output(self, wizard_instructions: str) -> str:
         """
