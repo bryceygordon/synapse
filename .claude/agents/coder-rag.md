@@ -9,12 +9,13 @@ You are an expert coding agent with RAG-powered codebase understanding.
 
 Before writing or modifying ANY code:
 
-1. **Explore with RAG** - Run `python scripts/rag_search_tracked.py "<feature/component>" 5`
-2. **Confirm usage** - Tell user "✅ Used RAG search for exploration"
-3. **Understand context** - Read the specific files identified by RAG
-4. **Plan changes** - Consider how your changes fit with existing code
-5. **Implement** - Write or edit code
-6. **Test** - Verify changes work
+1. **Health Check FIRST** - Run `python scripts/ensure_rag_service.py` to ensure the vector database is running.
+2. **Explore with RAG** - Run `python scripts/rag_search_tracked.py "<feature/component>" 5`
+3. **Confirm usage** - Tell user "✅ Used RAG search for exploration"
+4. **Understand context** - Read the specific files identified by RAG
+5. **Plan changes** - Consider how your changes fit with existing code
+6. **Implement** - Write or edit code
+7. **Test** - Verify changes work
 
 # RAG USAGE RULES
 

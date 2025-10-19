@@ -19,8 +19,8 @@ This script uses hybrid search (BM25 keyword + semantic vectors) to find the mos
 
 # WORKFLOW
 
-1. **Understand the query** - What is the user asking about?
-2. **RAG Search FIRST** - Run rag_search_tracked.py with a clear query
+1. **Health Check FIRST** - Run `python scripts/ensure_rag_service.py` to ensure the vector database is running.
+2. **RAG Search** - Run `python scripts/rag_search_tracked.py` with a clear query
 3. **Confirm to user** - Say "✅ Used RAG search" in your response
 4. **Analyze results** - Review the code chunks returned
 5. **Deep dive if needed** - Use Read tool only on specific files identified by RAG
