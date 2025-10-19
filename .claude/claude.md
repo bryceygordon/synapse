@@ -78,3 +78,40 @@ task_id: 987654321
 ```
 
 AI processes these instructions, parses natural language dates, and batches Todoist API calls.
+
+### Expected Interaction Flow - Constrained Tools
+
+**Key Advantages of Constraining Tools:**
+1. **Proposals are always valid** - AI can't suggest invalid enum values
+2. **Fewer tokens** - No need to explain valid options in prompt (they're in the schema)
+3. **Impossible to mess up** - Type system enforces correctness
+4. **Flexibility remains** - Fallback tools handle edge cases
+5. **Self-documenting** - Tool schemas serve as both constraints and documentation
+
+**Constrained Processing Example:**
+```json
+{
+  "name": "make_actionable",
+  "parameters": {
+    "task_id": {"type": "string"},
+    "location": {
+      "type": "string",
+      "enum": ["home", "house", "yard", "errand", "bunnings", "parents"]
+    },
+    "activity": {
+      "type": "string",
+      "enum": ["chore", "maintenance", "call", "email", "computer"]
+    },
+    "energy": {
+      "type": "string",
+      "enum": ["lowenergy", "medenergy", "highenergy"]
+    },
+    "duration": {
+      "type": "string",
+      "enum": ["short", "medium", "long"]
+    }
+  }
+}
+```
+
+---
