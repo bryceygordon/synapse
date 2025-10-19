@@ -26,3 +26,5 @@ env/
 .pytest_cache/
 htmlcov/
 .env.tmp
+qdrant_storage/
+synapse.egg-info/

@@ -179,10 +179,14 @@ class CodeChunker:
             List of chunks or empty list if file not found/skipped
         """
         try:
-            with open(file_path, 'r', encoding='utf-8') as f:
+            # --- FIX: Ensure absolute path for reliable reads ---
+            absolute_path = str(Path(file_path).resolve())
+            # --- END FIX ---
+
+            with open(absolute_path, 'r', encoding='utf-8') as f:
                 code = f.read()
 
-            return self.chunk_code(code, file_path)
+            return self.chunk_code(code, absolute_path)
 
         except (FileNotFoundError, UnicodeDecodeError) as e:
             print(f"Skipping {file_path}: {e}")
