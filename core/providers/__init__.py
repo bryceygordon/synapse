@@ -33,10 +33,13 @@ def get_provider(provider_name: str) -> BaseProvider:
     elif provider_name == "openai":
         from core.providers.openai_provider import OpenAIProvider
         return OpenAIProvider()
+    elif provider_name == "google":
+        from core.providers.google_provider import GoogleProvider
+        return GoogleProvider()
     else:
         raise ValueError(
             f"Unknown provider: '{provider_name}'. "
-            f"Supported providers: anthropic, openai"
+            f"Supported providers: anthropic, openai, google"
         )
 
 

@@ -494,6 +494,24 @@ When creating live integration tests:
 - Add small delays (`time.sleep(2)`) between operations for API sync
 - Handle both success and error cases
 
+### Modular Engine Architecture
+
+To enhance maintainability, testability, and token efficiency, new functionality should follow a modular, decoupled architecture. This pattern separates core, reusable logic from the interactive scripts and AI agents that use it.
+
+**Core Principles:**
+- **Engine:** All direct interactions with external APIs (e.g., Todoist) should be encapsulated in a dedicated "engine" directory (e.g., `core/todoist_engine/`).
+- **Granular Modules:** The engine should be composed of small, single-responsibility modules (e.g., `tasks.py`, `projects.py`). This allows for targeted retrieval by RAG agents and reduces the context needed for modifications.
+- **Scripts:** User-facing interactive workflows (like wizards) should be built in the top-level `scripts/` directory. These scripts import and orchestrate the engine's functionality.
+- **Specialist Agents:** AI agents should be lightweight and tool-less wherever possible. Their role is to perform specialized, high-level reasoning (e.g., natural language understanding, data refinement) on data provided by scripts, rather than executing low-level API calls directly.
+
+This approach ensures that the core logic is robust and reusable, while the user-facing and AI components remain focused and agile.
+
+### Claude Code Directives
+
+This section contains persistent operational instructions for the Claude Code assistant to ensure consistent and efficient development.
+
+1.  **Prioritize RAG for Code Exploration:** For any task involving code exploration, discovery, or understanding (e.g., "how does X work?", "where is Y implemented?"), the `rag-search` agent MUST be used as the first step. Direct file reading or grepping should only be used for targeting specific, known files. This optimizes for token efficiency and accuracy.
+
 ## Known Issues & Quirks
 
 ### Todoist API
@@ -550,6 +568,30 @@ docs(scope): Description
 - Keep commits focused and atomic
 - Push to `main` branch
 - **ALWAYS commit and push after completing a feature or fix**
+
+### Development Workflow (MANDATORY)
+
+To ensure code quality, stability, and maintainability, the following workflow MUST be followed for all new features, bug fixes, or refactoring.
+
+**Step-by-Step Process:**
+1.  **Implement the change**: Write the code for the new feature or fix.
+2.  **Write the tests**: Alongside the implementation, create comprehensive tests. Refer to the "Testing Requirements" section for detailed guidelines.
+3.  **Run all tests**: Before committing, run the entire test suite to ensure your changes haven't introduced regressions.
+    ```bash
+    pytest tests/ -v
+    ```
+4.  **Update documentation**: If your change affects the system's architecture, adds a new feature, or changes behavior, update `claude.md` accordingly.
+5.  **Commit the changes**: Use the conventional commit style.
+    ```bash
+    git add .
+    git commit -m "feat(inbox): Add interactive wizard"
+    ```
+6.  **Push to remote**: Save your work to the remote repository.
+    ```bash
+    git push
+    ```
+
+This workflow makes testing a required, non-negotiable part of the development lifecycle.
 
 **Testing Checklist:**
 When adding new functionality, ensure tests are comprehensive:

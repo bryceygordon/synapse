@@ -11,6 +11,7 @@ Requires-Dist: typer[all]>=0.12.3
 Requires-Dist: pyyaml>=6.0.1
 Requires-Dist: python-dotenv>=1.0.1
 Requires-Dist: requests>=2.32.3
+Requires-Dist: langchain-text-splitters>=0.2.1
 Provides-Extra: dev
 Requires-Dist: pytest>=8.2.2; extra == "dev"
 Requires-Dist: pytest-mock>=3.15.1; extra == "dev"
