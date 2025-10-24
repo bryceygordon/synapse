@@ -3,6 +3,7 @@
 import json
 import os
 import sys
+import time
 import uuid
 from rich.console import Console
 from rich.panel import Panel
@@ -48,6 +49,14 @@ def create_test_tasks(api, project_name):
             "description": "This task should be deleted directly by the wizard."
         },
         {
+            "content": f"[E2E-Test-{test_run_id}] Task with priority p2",
+            "description": "This task should be processed with priority p2 (High)."
+        },
+        {
+            "content": f"[E2E-Test-{test_run_id}] Task with due date for reminders",
+            "description": "This task should be moved to the reminders project."
+        },
+        {
             "content": f"[E2E-Test-{test_run_id}] Task to leave in inbox",
             "description": "This task should be left in the inbox after a partial run."
         }
@@ -74,11 +83,9 @@ def run_automated_test():
         api = tasks.get_api_client()
         console.print("[bold green]Successfully connected to Todoist API.[/bold green]")
 
-        inbox_project = tasks.find_project_by_name(api, "Inbox")
-        processed_project = tasks.find_project_by_name(api, "processed")
-        if not inbox_project or not processed_project:
-            console.print("[bold red]Error: Could not find 'Inbox' or 'processed' project.[/bold red]")
-            return None, [], [], [], []
+        inbox_project = tasks.find_or_create_project(api, "Inbox")
+        processed_project = tasks.find_or_create_project(api, "processed")
+        reminder_project = tasks.find_or_create_project(api, "reminder")
 
         # --- 2. Create Test Data ---
         test_tasks, test_run_id = create_test_tasks(api, inbox_project.name)
@@ -87,10 +94,10 @@ def run_automated_test():
             return test_run_id, [], [], [], []
 
         # Assign tasks to their simulated outcomes
-        tasks_to_process_ids = [test_tasks[0].id, test_tasks[1].id]
-        tasks_to_complete_ids = [test_tasks[2].id]
-        tasks_to_delete_ids = [test_tasks[3].id]
-        tasks_left_in_inbox_ids = [test_tasks[4].id] # Task to be "exited" on
+        tasks_to_process_ids = [test_tasks[0].id, test_tasks[1].id, test_tasks[5].id, test_tasks[6].id]
+        tasks_to_complete_ids = [test_tasks[3].id]
+        tasks_to_delete_ids = [test_tasks[4].id]
+        tasks_left_in_inbox_ids = [test_tasks[7].id] # Task to be "exited" on
 
         # --- 3. Simulate Wizard Actions ---
         console.print("\n[bold blue]Simulating wizard actions (partial run)...[/bold blue]")
@@ -99,19 +106,23 @@ def run_automated_test():
             {"original_task_id": test_tasks[0].id, "original_content": test_tasks[0].content, "is_multistep": False, "should_rename": True, "user_input": "Renamed simple task @home p1 tomorrow"},
             # Task 2: Multi-step
             {"original_task_id": test_tasks[1].id, "original_content": test_tasks[1].content, "is_multistep": True, "should_rename": False, "user_input": "First subtask for the multi-step item @computer"},
+            # Task 6: Priority
+            {"original_task_id": test_tasks[5].id, "original_content": test_tasks[5].content, "is_multistep": False, "should_rename": False, "user_input": "A task with priority p2"},
+            # Task 7: Due date
+            {"original_task_id": test_tasks[6].id, "original_content": test_tasks[6].content, "is_multistep": False, "should_rename": False, "user_input": "A task with a due date in two days"},
         ]
         console.print(f"  - Simulating 'process' for {len(agent_processing_list)} tasks.")
 
-        # Task 3: Complete
-        console.print(f"  - Simulating 'complete' for task: {test_tasks[2].content}")
+        # Task 4: Complete
+        console.print(f"  - Simulating 'complete' for task: {test_tasks[3].content}")
         tasks.complete_task(api, tasks_to_complete_ids[0])
 
-        # Task 4: Delete
-        console.print(f"  - Simulating 'delete' for task: {test_tasks[3].content}")
+        # Task 5: Delete
+        console.print(f"  - Simulating 'delete' for task: {test_tasks[4].content}")
         tasks.delete_task(api, tasks_to_delete_ids[0])
 
-        # Task 5: Simulate exiting
-        console.print(f"  - Simulating 'exit' on task: {test_tasks[4].content}")
+        # Task 7: Simulate exiting
+        console.print(f"  - Simulating 'exit' on task: {test_tasks[6].content}")
         console.print("[green]✓ Partial wizard simulation complete.[/green]")
 
 
@@ -163,7 +174,13 @@ def run_automated_test():
                             api_params['parent_id'] = original_id
                             tasks.create_task(api, **api_params)
 
-                        tasks.move_task(api, task_id=original_id, project_id=processed_project.id)
+                        # --- Move to destination project ---
+                        destination = task_op.get('destination_project', 'processed')
+                        if destination == 'reminder':
+                            target_project_id = reminder_project.id
+                        else:
+                            target_project_id = processed_project.id
+                        tasks.move_task(api, task_id=original_id, project_id=target_project_id)
                 console.print("[bold green]✓ All changes applied successfully![/bold green]")
 
             except json.JSONDecodeError:
@@ -190,20 +207,34 @@ def verify_results(api, test_run_id, processed_ids, completed_ids, deleted_ids, 
 
     # --- 1. Verify Processed Tasks ---
     console.print("\n[bold]Verifying processed tasks...[/bold]")
-    processed_project = tasks.find_project_by_name(api, "processed")
-    processed_tasks_on_todoist = tasks.get_tasks_list(api, project_id=processed_project.id)
-    parent_tasks_found = [t for t in processed_tasks_on_todoist if t.id in processed_ids]
+    processed_project = tasks.find_or_create_project(api, "processed")
+    reminder_project = tasks.find_or_create_project(api, "reminder")
 
-    if len(parent_tasks_found) == len(processed_ids):
-        console.print(f"[bold green]✓ Success:[/bold green] Found all {len(processed_ids)} processed parent tasks in the 'processed' project.")
-        for task in parent_tasks_found:
-            console.print(f"  - [cyan]Parent Task:[/cyan] {task.content}")
-            subtasks = [st for st in processed_tasks_on_todoist if st.parent_id == task.id]
-            if subtasks:
-                for subtask in subtasks:
-                    console.print(f"    - [yellow]Subtask:[/yellow] {subtask.content} | Labels: {subtask.labels}")
+    all_processed_tasks_on_todoist = tasks.get_tasks_list(api, project_id=processed_project.id)
+    all_reminder_tasks_on_todoist = tasks.get_tasks_list(api, project_id=reminder_project.id)
+
+    # Filter tasks from the current test run
+    processed_tasks_in_run = [t for t in all_processed_tasks_on_todoist if t.id in processed_ids]
+    reminder_tasks_in_run = [t for t in all_reminder_tasks_on_todoist if t.id in processed_ids]
+
+    expected_processed_count = 2
+    expected_reminder_count = 2
+
+    # Verification for "processed" project
+    if len(processed_tasks_in_run) == expected_processed_count:
+        console.print(f"[bold green]✓ Success:[/bold green] Found all {expected_processed_count} expected tasks in the 'processed' project.")
+        for task in processed_tasks_in_run:
+             console.print(f"  - [cyan]Processed Task:[/cyan] {task.content}")
     else:
-        console.print(f"[bold red]CRITICAL FAILURE:[/bold red] Expected {len(processed_ids)} processed tasks, but found {len(parent_tasks_found)}.")
+        console.print(f"[bold red]CRITICAL FAILURE:[/bold red] Expected {expected_processed_count} processed tasks, but found {len(processed_tasks_in_run)}.")
+
+    # Verification for "reminder" project
+    if len(reminder_tasks_in_run) == expected_reminder_count:
+        console.print(f"[bold green]✓ Success:[/bold green] Found all {expected_reminder_count} expected tasks in the 'reminder' project.")
+        for task in reminder_tasks_in_run:
+            console.print(f"  - [cyan]Reminder Task:[/cyan] {task.content} | Due: {task.due.string if task.due else 'N/A'}")
+    else:
+        console.print(f"[bold red]CRITICAL FAILURE:[/bold red] Expected {expected_reminder_count} reminder tasks, but found {len(reminder_tasks_in_run)}.")
 
     # --- 2. Verify Completed Tasks ---
     console.print("\n[bold]Verifying completed tasks...[/bold]")
@@ -225,13 +256,22 @@ def verify_results(api, test_run_id, processed_ids, completed_ids, deleted_ids, 
 
     # --- 3. Verify Deleted Tasks ---
     console.print("\n[bold]Verifying deleted tasks...[/bold]")
-    try:
-        deleted_task_id = deleted_ids[0]
-        api.get_task(deleted_task_id)
-        console.print(f"[bold red]CRITICAL FAILURE:[/bold red] Deleted task with ID {deleted_task_id} still exists.")
-    except Exception as e:
-        # We expect an exception here, as the task should not be found.
-        console.print(f"[bold green]✓ Success:[/bold green] Deleted task with ID {deleted_ids[0]} could not be found, as expected.")
+    deleted_task_id = deleted_ids[0]
+    is_deleted = False
+    for attempt in range(3):
+        try:
+            time.sleep(2) # Wait before checking
+            api.get_task(deleted_task_id)
+            console.print(f"  - [yellow]Attempt {attempt + 1}: Task still found. Retrying...[/yellow]")
+        except Exception as e:
+            # We expect an exception here, as the task should not be found.
+            is_deleted = True
+            break # Exit the loop as soon as the task is confirmed deleted
+
+    if is_deleted:
+        console.print(f"[bold green]✓ Success:[/bold green] Deleted task with ID {deleted_task_id} could not be found, as expected.")
+    else:
+        console.print(f"[bold red]CRITICAL FAILURE:[/bold red] Deleted task with ID {deleted_task_id} still exists after 3 attempts.")
 
     # --- 4. Verify Tasks Left in Inbox ---
     console.print("\n[bold]Verifying tasks left in inbox...[/bold]")

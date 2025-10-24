@@ -5,8 +5,12 @@ import os
 import sys
 from rich.console import Console
 from rich.panel import Panel
-from rich.prompt import Prompt, Confirm
+from rich.prompt import Prompt, Confirm, IntPrompt
 from rich.syntax import Syntax
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 
 # Add project root to the Python path
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
@@ -14,6 +18,7 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from core.todoist_engine import tasks
 import yaml
 from core.providers import get_provider
+from core.main import display_turn_usage
 
 # Initialize Rich console
 console = Console()
@@ -43,11 +48,9 @@ def run_inbox_wizard():
         console.print("[bold green]Fetching tasks from your Inbox...[/bold green]")
 
         # Find the Inbox project
-        inbox_project = tasks.find_project_by_name(api, "Inbox")
-        processed_project = tasks.find_project_by_name(api, "processed")
-        if not inbox_project or not processed_project:
-            console.print("[bold red]Error: Could not find 'Inbox' or 'processed' project.[/bold red]")
-            return
+        inbox_project = tasks.find_or_create_project(api, "Inbox")
+        processed_project = tasks.find_or_create_project(api, "processed")
+        reminder_project = tasks.find_or_create_project(api, "reminder")
 
         # Get all tasks in the Inbox
         inbox_tasks = tasks.get_tasks_list(api, project_id=inbox_project.id)
@@ -68,13 +71,14 @@ def run_inbox_wizard():
 
             # --- Interactive Processing Logic ---
             action_choices = {
+                "h": "happy",
                 "p": "process",
                 "s": "skip",
                 "c": "complete",
                 "d": "delete",
                 "e": "exit"
             }
-            action = prompt_with_shortcuts("Choose an action", action_choices, "p")
+            action = prompt_with_shortcuts("Choose an action", action_choices, "h")
 
             if action == "exit":
                 if processed_data:
@@ -84,6 +88,20 @@ def run_inbox_wizard():
                 break
             if action == "skip":
                 console.print(f"Skipping task: {task.content}")
+                continue
+
+            if action == "happy":
+                # Task is good as is, send to agent with default values
+                task_data = {
+                    "original_task_id": task.id,
+                    "original_content": task.content,
+                    "is_multistep": False,
+                    "should_rename": False,
+                    "user_input": ""
+                }
+                processed_data.append(task_data)
+                console.print(f"[green]✓ Task '{task.content}' captured for processing.[/green]")
+                console.print("-" * 30)
                 continue
 
             if action == "complete":
@@ -141,18 +159,22 @@ def run_inbox_wizard():
                 config_path = "agents/todoist_inbox_processor.yaml"
                 with open(config_path, "r") as f:
                     agent_config = yaml.safe_load(f)
-                provider = get_provider(agent_config["provider"], agent_config["model"])
+                provider = get_provider(agent_config["provider"])
+                client = provider.create_client()
 
                 # 2. Format the data and send to the agent
                 input_json = json.dumps(processed_data, indent=2)
 
                 with console.status("[bold yellow]Agent is processing...[/bold yellow]", spinner="dots"):
                     response = provider.send_message(
-                        agent_config["system_prompt"],
-                        input_json,
+                        client=client,
+                        system_prompt=agent_config["system_prompt"],
+                        user_prompt=input_json,
+                        model=agent_config["model"],
                         tools=[],
                         discussion=[]
                     )
+                display_turn_usage(response)
 
                 # 3. Display the refined output
                 console.print(Panel("[bold green]Agent has returned the refined tasks:[/bold green]", border_style="green"))
@@ -160,9 +182,9 @@ def run_inbox_wizard():
                 # The agent's response should be a JSON string in the first text block
                 refined_json_str = response.text
 
-                # Pretty-print the JSON
-                refined_syntax = Syntax(refined_json_str, "json", theme="monokai", line_numbers=True)
-                console.print(refined_syntax)
+                # Clean the JSON string if it's wrapped in markdown
+                if refined_json_str.strip().startswith("```json"):
+                    refined_json_str = refined_json_str.strip()[7:-3].strip()
 
                 # --- Final Review and Execution ---
                 try:
@@ -187,6 +209,7 @@ def run_inbox_wizard():
                             return
 
                         if proceed == "apply":
+                            reminder_tasks = []
                             with console.status("[bold yellow]Applying changes...[/bold yellow]", spinner="dots"):
                                 for task_op in refined_tasks:
                                     # --- Add @next tag ---
@@ -204,13 +227,27 @@ def run_inbox_wizard():
                                         api_params['parent_id'] = original_id
                                         tasks.create_task(api, **api_params)
 
-                                    # --- Move to #processed ---
-                                    tasks.move_task(api, task_id=original_id, project_id=processed_project.id)
+                                    # --- Move to destination project ---
+                                    destination = task_op.get('destination_project', 'processed')
+                                    if destination == 'reminder':
+                                        target_project_id = reminder_project.id
+                                        reminder_tasks.append(api_params.get('content', ''))
+                                    else:
+                                        target_project_id = processed_project.id
+                                    tasks.move_task(api, task_id=original_id, project_id=target_project_id)
                                 console.print("[bold green]✓ All tasks processed successfully![/bold green]")
+                            if reminder_tasks:
+                                reminder_list = "\n".join([f"- {task}" for task in reminder_tasks])
+                                console.print(Panel(
+                                    f"[bold]The following tasks were moved to your 'reminder' project:[/bold]\n\n{reminder_list}\n\n[italic yellow]Don't forget to set a notification for them in Todoist![/italic yellow]",
+                                    title="[bold magenta]🔔 Reminder Set 🔔[/bold magenta]",
+                                    border_style="magenta",
+                                    expand=False
+                                ))
                             break
 
                         if proceed == "edit":
-                            task_num = Prompt.askInt("Enter the number of the task to edit") - 1
+                            task_num = IntPrompt.ask("Enter the number of the task to edit") - 1
                             if 0 <= task_num < len(refined_tasks):
                                 field_choices = {
                                     "t": "content",

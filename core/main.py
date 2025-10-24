@@ -186,6 +186,19 @@ def display_tool_result(tool_name: str, result: str):
         )
 
 
+def display_turn_usage(response):
+    """Displays the token usage for a single API call."""
+    if response.usage:
+        cache_info = ""
+        if response.usage.cached_tokens > 0:
+            cache_pct = (response.usage.cached_tokens / response.usage.input_tokens * 100) if response.usage.input_tokens > 0 else 0
+            cache_info = f" [green]({response.usage.cached_tokens} cached = {cache_pct:.0f}% cache hit)[/green]"
+        console.print(
+            f"[dim]Tokens: {response.usage.input_tokens} in{cache_info} + {response.usage.output_tokens} out = "
+            f"{response.usage.total_tokens} total[/dim]"
+        )
+
+
 @app.command("chat", help="Starts an interactive chat session with the agent.")
 @app.command("", hidden=True)
 def chat(agent_name: str = "coder"):
@@ -424,15 +437,7 @@ def chat(agent_name: str = "coder"):
                 messages.append({"role": "assistant", "content": response.text})
 
             # Show token usage for this turn if available
-            if response.usage:
-                cache_info = ""
-                if response.usage.cached_tokens > 0:
-                    cache_pct = (response.usage.cached_tokens / response.usage.input_tokens * 100) if response.usage.input_tokens > 0 else 0
-                    cache_info = f" [green]({response.usage.cached_tokens} cached = {cache_pct:.0f}% cache hit)[/green]"
-                console.print(
-                    f"[dim]Tokens: {response.usage.input_tokens} in{cache_info} + {response.usage.output_tokens} out = "
-                    f"{response.usage.total_tokens} total[/dim]"
-                )
+            display_turn_usage(response)
 
         except KeyboardInterrupt:
             console.print("\n")
@@ -501,6 +506,7 @@ def run(goal: str, max_steps: int = 15, agent_name: str = "coder"):
                 if response.text:
                     render_assistant_message(response.text, title="[bold green]✅ Final Response[/bold green]")
                 console.print("\n[bold green]✅ Run Finished:[/bold green] [dim]Goal achieved or no further tools needed.[/dim]")
+                display_turn_usage(response)
                 break
 
             # Execute tools

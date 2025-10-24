@@ -43,6 +43,22 @@ def find_project_by_name(api: TodoistAPI, project_name: str) -> Optional[Project
     projects = get_projects(api)
     return next((p for p in projects if p.name.lower() == project_name.lower()), None)
 
+def find_or_create_project(api: TodoistAPI, project_name: str) -> Project:
+    """
+    Finds a project by name. If it doesn't exist, creates it.
+    Returns the Project object.
+    """
+    project = find_project_by_name(api, project_name)
+    if project:
+        return project
+    else:
+        # We need to inform the user or log this.
+        # For now, let's assume auto-creation is desired.
+        print(f"Project '{project_name}' not found, creating it.")
+        return api.add_project(name=project_name)
+
+
+
 def find_section_by_name(api: TodoistAPI, section_name: str, project_id: str) -> Optional[Section]:
     """Finds a section by its name within a project."""
     sections = api.get_sections(project_id=project_id)
@@ -149,8 +165,11 @@ def update_task(api: TodoistAPI, task_id: str, content: str = None, labels: list
 def complete_task(api: TodoistAPI, task_id: str) -> str:
     """Complete task."""
     try:
-        api.complete_task(task_id)
-        return _success("✓ Task completed", data={"task_id": task_id})
+        is_success = api.complete_task(task_id)
+        if is_success:
+            return _success("✓ Task completed", data={"task_id": task_id})
+        else:
+            return _error("TodoistAPIError", "Failed to complete task, API returned unsuccessful.")
     except Exception as e:
         return _error("TodoistAPIError", f"Failed to complete task: {str(e)}")
 
@@ -168,8 +187,11 @@ def delete_task(api: TodoistAPI, task_id: str) -> str:
     try:
         task = api.get_task(task_id)
         content = task.content
-        api.delete_task(task_id)
-        return _success(f"Deleted task: {content}", data={"task_id": task_id, "content": content})
+        is_success = api.delete_task(task_id)
+        if is_success:
+            return _success(f"Deleted task: {content}", data={"task_id": task_id, "content": content})
+        else:
+            return _error("TodoistAPIError", "Failed to delete task, API returned unsuccessful.")
     except Exception as e:
         return _error("TodoistAPIError", f"Failed to delete task: {str(e)}")
 
