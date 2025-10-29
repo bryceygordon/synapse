@@ -18,7 +18,21 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from core.todoist_engine import tasks
 import yaml
 from core.providers import get_provider
-from core.main import display_turn_usage
+
+# Import display_turn_usage function inline
+def display_turn_usage(response):
+    """Displays the token usage for a single API call."""
+    from rich.console import Console
+    console = Console()
+    if hasattr(response, 'usage') and response.usage:
+        cache_info = ""
+        if hasattr(response.usage, 'cached_tokens') and response.usage.cached_tokens > 0:
+            cache_pct = (response.usage.cached_tokens / response.usage.input_tokens * 100) if response.usage.input_tokens > 0 else 0
+            cache_info = f" [green]({response.usage.cached_tokens} cached = {cache_pct:.0f}% cache hit)[/green]"
+        console.print(
+            f"[dim]Tokens: {response.usage.input_tokens} in{cache_info} + {response.usage.output_tokens} out = "
+            f"{response.usage.total_tokens} total[/dim]"
+        )
 
 # Initialize Rich console
 console = Console()
